@@ -383,9 +383,9 @@ export default function LandingPage({ initialView = 'home' }) {
               <h1 className="pay-h1">BITmCQ<br/><em>Full Mock Exam</em></h1>
               <p className="pay-subtitle">Master the exam with 310 Previous Year Questions distributed across 16 Official Sections. Real UI/UX simulation.</p>
 
-              {/* NEW: 5-Tier Pricing Table */}
-              <div className="pricing-container" style={{ marginTop: '50px' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px', alignItems: 'stretch' }}>
+              {/* NEW: 5-Tier Pricing Table with Side-by-Side Scroll */}
+              <div className="pricing-container" style={{ marginTop: '50px', paddingBottom: '20px' }}>
+                <div className="pricing-scroll-wrapper" style={{ display: 'flex', gap: '20px', overflowX: 'auto', padding: '10px 0 30px', scrollSnapType: 'x mandatory', WebkitOverflowScrolling: 'touch', msOverflowStyle: 'none', scrollbarWidth: 'none' }}>
                   
                   {/* FREE TRIAL */}
                   <div className="pricing-card" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)' }}>
