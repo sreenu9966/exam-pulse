@@ -1397,16 +1397,29 @@ export default function AdminDashboard() {
                     <div className="status-badge status-pro">{users.length} TOTAL USERS</div>
                 </div>
 
-                <div className="glass-card" style={{ borderRadius: "24px", overflow: "hidden" }}>
-                   <div style={{ display: "flex", padding: "16px 24px", borderBottom: "1px solid rgba(255,255,255,0.05)", background: "rgba(255,255,255,0.01)" }}>
-                      <div style={{ width: "60px", textAlign: "center", fontSize: "11px", color: "var(--muted)", fontWeight: 800 }}>INDEX</div>
-                      <div style={{ flex: 1, fontSize: "11px", color: "var(--muted)", fontWeight: 800, marginLeft: "20px" }}>STUDENT INFORMATION</div>
-                      <div style={{ width: "120px", textAlign: "center", fontSize: "11px", color: "var(--muted)", fontWeight: 800 }}>SUBSCRIPTION</div>
-                      <div style={{ width: "150px", textAlign: "right", fontSize: "11px", color: "var(--muted)", fontWeight: 800 }}>ACTIONS</div>
+                <div className="no-scrollbar" style={{ borderRadius: "16px", overflowY: "auto", maxHeight: "calc(100vh - 200px)", border: "1px solid rgba(255,255,255,0.05)", background: "transparent" }}>
+                   <div style={{ display: "flex", padding: "16px 24px", borderBottom: "1px solid rgba(255,255,255,0.05)", background: "rgba(11, 18, 33, 0.95)", backdropFilter: "blur(10px)", position: "sticky", top: 0, zIndex: 10 }}>
+                      <div style={{ width: "60px", textAlign: "center", fontSize: "11px", color: "var(--muted)", fontWeight: 800, letterSpacing: "1px" }}>INDEX</div>
+                      <div style={{ flex: 1, fontSize: "11px", color: "var(--muted)", fontWeight: 800, marginLeft: "20px", letterSpacing: "1px" }}>STUDENT INFORMATION</div>
+                      <div style={{ width: "120px", textAlign: "center", fontSize: "11px", color: "var(--muted)", fontWeight: 800, letterSpacing: "1px" }}>SUBSCRIPTION</div>
+                      <div style={{ width: "150px", textAlign: "right", fontSize: "11px", color: "var(--muted)", fontWeight: 800, letterSpacing: "1px" }}>ACTIONS</div>
                    </div>
 
-                   {users.map((u, i) => (
-                     <div key={u._id} className="q-row-card" style={{ display: "flex", padding: "20px 24px", alignItems: "center" }}>
+                   {users.length === 0 ? (
+                     <div style={{ padding: "80px 20px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", animation: "fadeIn 0.5s ease-out" }}>
+                       <div style={{ padding: "24px", background: "rgba(255,255,255,0.02)", borderRadius: "50%", marginBottom: "20px", border: "1px dashed rgba(255,255,255,0.1)" }}>
+                         <span style={{ fontSize: "32px", opacity: 0.8 }}>👥</span>
+                       </div>
+                       <h3 style={{ fontSize: "18px", fontWeight: 800, color: "#fff", marginBottom: "8px" }}>No Users Found</h3>
+                       <p style={{ fontSize: "13px", color: "var(--muted)", maxWidth: "300px", textAlign: "center" }}>There are currently no registered students in the database.</p>
+                     </div>
+                   ) : users.map((u, i) => (
+                     <div 
+                       key={u._id} 
+                       style={{ display: "flex", padding: "20px 24px", alignItems: "center", borderBottom: "1px solid rgba(255,255,255,0.05)", background: "transparent", transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)", animation: `fadeIn 0.4s ease-out ${i * 0.05}s both`, borderLeft: "3px solid transparent" }}
+                       onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.02)"; e.currentTarget.style.borderLeft = "3px solid " + (u.plan === 'Pro' ? '#10b981' : 'var(--accent)'); e.currentTarget.style.transform = "translateX(4px)"; }} 
+                       onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderLeft = "3px solid transparent"; e.currentTarget.style.transform = "translateX(0)"; }}
+                     >
                         <div style={{ width: "60px", textAlign: "center", fontSize: "13px", fontWeight: 700, color: "var(--muted)" }}>{String(i + 1).padStart(2, '0')}</div>
                         <div style={{ flex: 1, marginLeft: "20px", display: "flex", alignItems: "center", gap: "16px" }}>
                            <div className="avatar-circle">{u.name?.charAt(0) || "S"}</div>
