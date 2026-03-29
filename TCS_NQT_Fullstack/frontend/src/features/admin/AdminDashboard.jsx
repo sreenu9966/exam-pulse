@@ -1430,6 +1430,7 @@ export default function AdminDashboard() {
                       <div style={{ width: "120px", textAlign: "center", fontSize: "11px", color: "var(--muted)", fontWeight: 800, letterSpacing: "1px" }}>SUBSCRIPTION</div>
                       <div style={{ width: "180px", textAlign: "center", fontSize: "11px", color: "var(--muted)", fontWeight: 800, letterSpacing: "1px" }}>GENERATED ACCESS CODE</div>
                       <div style={{ width: "140px", textAlign: "center", fontSize: "11px", color: "var(--muted)", fontWeight: 800, letterSpacing: "1px" }}>EXAM HISTORY</div>
+                      <div style={{ width: "90px", textAlign: "center", fontSize: "11px", color: "var(--muted)", fontWeight: 800, letterSpacing: "1px" }}>LIMIT</div>
                       <div style={{ width: "150px", textAlign: "right", fontSize: "11px", color: "var(--muted)", fontWeight: 800, letterSpacing: "1px" }}>ACTIONS</div>
                    </div>
 
@@ -1476,6 +1477,9 @@ export default function AdminDashboard() {
                            {(u.attempts || []).length > 0 && (
                              <button onClick={() => setViewAttempts(u)} style={{ background: "none", border: "none", color: "var(--accent)", fontSize: "10px", fontWeight: 700, cursor: "pointer", textDecoration: "underline", padding: "4px 0" }}>📊 View Details</button>
                            )}
+                        </div>
+                        <div style={{ width: "90px", textAlign: "center" }}>
+                           <div style={{ fontSize: "13px", fontWeight: 800, color: "var(--gold)" }}>{u.subscription?.maxAttempts || 2} <span style={{ fontSize: "10px", opacity: 0.6 }}>Max</span></div>
                         </div>
                         <div style={{ width: "150px", display: "flex", gap: "10px", justifyContent: "flex-end" }}>
                            <button onClick={() => setEditUser(u)} className="action-btn edit-btn" style={{ padding: "6px 12px", fontSize: "11px" }}>EDIT</button>
