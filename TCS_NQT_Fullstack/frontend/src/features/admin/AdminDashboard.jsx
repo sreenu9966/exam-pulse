@@ -91,6 +91,10 @@ export default function AdminDashboard() {
   const [maintenanceTopics, setMaintenanceTopics] = useState([]);
   const [showStatsModal, setShowStatsModal] = useState(false);
   const [modal, setModal] = useState({ show: false, type: "alert", title: "", message: "", onConfirm: null });
+  const [viewAttempts, setViewAttempts] = useState(null);
+  const [editSubmission, setEditSubmission] = useState(null);
+  const [rejectionModal, setRejectionModal] = useState(null);
+  const [rejectionReason, setRejectionReason] = useState("");
 
   const [isEditMode, setIsEditMode] = useState(false);
   const [layout, setLayout] = useState(() => {
@@ -335,13 +339,35 @@ export default function AdminDashboard() {
     } catch (err) { showToast("Failed to update user."); }
   };
 
-  const processSubmission = async (id, status, planType = 'premium') => {
-    const action = status === 'approved' ? 'approve' : 'reject';
-    try {
-      await axios.post(`${API}/admin/${action}/${id}`, { planType }, config);
-      showToast(`Submission ${status}! 🔔`);
-      fetchSubmissions(); fetchStats(); fetchUsers();
-    } catch (err) { showToast("Action failed."); }
+  const processSubmission = (id, status, planType = 'premium', reason = '') => {
+    const url = `${API}/admin/${status === 'approved' ? 'approve' : 'reject'}/${id}`;
+    axios.post(url, { planType, reason }, config)
+      .then(() => {
+        showToast(`Request ${status === 'approved' ? 'Approved ✅' : 'Rejected ❌'}`);
+        loadSubmissions();
+        loadStats();
+        setRejectionModal(null);
+        setRejectionReason("");
+      })
+      .catch((e) => showToast(e.response?.data?.error || "Error processing request"));
+  };
+
+  const handleUpdateSubmission = () => {
+    if (!editSubmission) return;
+    axios.put(`${API}/admin/submissions/${editSubmission._id}`, editSubmission, config)
+      .then(() => {
+        showToast("Submission Updated! 📝");
+        setEditSubmission(null);
+        loadSubmissions();
+      })
+      .catch((e) => showToast(e.response?.data?.error || "Failed to update"));
+  };
+
+  const sendCorrectionLink = (id) => {
+    showToast("Sending correction email... ⏳");
+    axios.post(`${API}/admin/submissions/${id}/send-link`, {}, config)
+      .then(() => showToast("Correction Link Sent! 📧"))
+      .catch((e) => showToast(e.response?.data?.error || "Failed to send link"));
   };
 
   const handleLogout = () => { sessionStorage.removeItem("admin_token"); navigate("/admin"); };
@@ -1402,6 +1428,8 @@ export default function AdminDashboard() {
                       <div style={{ width: "60px", textAlign: "center", fontSize: "11px", color: "var(--muted)", fontWeight: 800, letterSpacing: "1px" }}>INDEX</div>
                       <div style={{ flex: 1, fontSize: "11px", color: "var(--muted)", fontWeight: 800, marginLeft: "20px", letterSpacing: "1px" }}>STUDENT INFORMATION</div>
                       <div style={{ width: "120px", textAlign: "center", fontSize: "11px", color: "var(--muted)", fontWeight: 800, letterSpacing: "1px" }}>SUBSCRIPTION</div>
+                      <div style={{ width: "180px", textAlign: "center", fontSize: "11px", color: "var(--muted)", fontWeight: 800, letterSpacing: "1px" }}>GENERATED ACCESS CODE</div>
+                      <div style={{ width: "140px", textAlign: "center", fontSize: "11px", color: "var(--muted)", fontWeight: 800, letterSpacing: "1px" }}>EXAM HISTORY</div>
                       <div style={{ width: "150px", textAlign: "right", fontSize: "11px", color: "var(--muted)", fontWeight: 800, letterSpacing: "1px" }}>ACTIONS</div>
                    </div>
 
@@ -1417,7 +1445,7 @@ export default function AdminDashboard() {
                      <div 
                        key={u._id} 
                        style={{ display: "flex", padding: "20px 24px", alignItems: "center", borderBottom: "1px solid rgba(255,255,255,0.05)", background: "transparent", transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)", animation: `fadeIn 0.4s ease-out ${i * 0.05}s both`, borderLeft: "3px solid transparent" }}
-                       onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.02)"; e.currentTarget.style.borderLeft = "3px solid " + (u.plan === 'Pro' ? '#10b981' : 'var(--accent)'); e.currentTarget.style.transform = "translateX(4px)"; }} 
+                       onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.02)"; e.currentTarget.style.borderLeft = "3px solid " + (u.plan === 'Pro' || u.plan === 'premium' ? '#10b981' : 'var(--accent)'); e.currentTarget.style.transform = "translateX(4px)"; }} 
                        onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderLeft = "3px solid transparent"; e.currentTarget.style.transform = "translateX(0)"; }}
                      >
                         <div style={{ width: "60px", textAlign: "center", fontSize: "13px", fontWeight: 700, color: "var(--muted)" }}>{String(i + 1).padStart(2, '0')}</div>
@@ -1429,7 +1457,25 @@ export default function AdminDashboard() {
                            </div>
                         </div>
                         <div style={{ width: "120px", display: "flex", justifyContent: "center" }}>
-                           <span className={`status-badge ${u.plan === 'Pro' ? 'status-pro' : 'status-free'}`}>{u.plan || 'Free'}</span>
+                           <span className={`status-badge ${u.plan === 'Pro' || u.plan === 'premium' ? 'status-pro' : 'status-free'}`}>{u.plan || 'Free'}</span>
+                        </div>
+                        <div style={{ width: "180px", display: "flex", justifyContent: "center" }}>
+                           <div style={{ display: "flex", alignItems: "center", gap: "6px", background: "rgba(16, 185, 129, 0.1)", padding: "4px 8px", borderRadius: "6px", border: "1px solid rgba(16, 185, 129, 0.2)", width: "fit-content", maxWidth: "100%" }}>
+                              <span style={{ fontSize: "12px", color: "#10b981", fontWeight: 800, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "130px", textAlign: "center" }}>
+                                {u.code || '—'}
+                              </span>
+                              {u.code && (
+                                <span style={{ cursor: "pointer", fontSize: "14px", opacity: 0.7, transition: "0.2s" }} onMouseEnter={e => e.target.style.opacity = 1} onMouseLeave={e => e.target.style.opacity = 0.7} onClick={() => { navigator.clipboard.writeText(u.code); showToast("Copied Access Code! 📋"); }} title="Copy Code">
+                                  📋
+                                </span>
+                              )}
+                           </div>
+                        </div>
+                        <div style={{ width: "140px", textAlign: "center" }}>
+                           <div style={{ fontSize: "13px", fontWeight: 800, color: (u.attempts || []).length > 0 ? "var(--accent)" : "var(--muted)" }}>{(u.attempts || []).length} Attempts</div>
+                           {(u.attempts || []).length > 0 && (
+                             <button onClick={() => setViewAttempts(u)} style={{ background: "none", border: "none", color: "var(--accent)", fontSize: "10px", fontWeight: 700, cursor: "pointer", textDecoration: "underline", padding: "4px 0" }}>📊 View Details</button>
+                           )}
                         </div>
                         <div style={{ width: "150px", display: "flex", gap: "10px", justifyContent: "flex-end" }}>
                            <button onClick={() => setEditUser(u)} className="action-btn edit-btn" style={{ padding: "6px 12px", fontSize: "11px" }}>EDIT</button>
@@ -1501,11 +1547,11 @@ export default function AdminDashboard() {
                    <div style={{ display: "flex", padding: "16px 24px", borderBottom: "1px solid rgba(255,255,255,0.05)", background: "rgba(11, 18, 33, 0.95)", backdropFilter: "blur(10px)", position: "sticky", top: 0, zIndex: 10 }}>
                       <div style={{ width: "40px", textAlign: "center", fontSize: "11px", color: "var(--muted)", fontWeight: 800, letterSpacing: "1px" }}>#</div>
                       <div style={{ flex: 1, fontSize: "11px", color: "var(--muted)", fontWeight: 800, marginLeft: "20px", letterSpacing: "1px" }}>STUDENT</div>
-                      <div style={{ width: "150px", fontSize: "11px", color: "var(--muted)", fontWeight: 800, letterSpacing: "1px" }}>UTR / CODE</div>
-                      <div style={{ width: "80px", fontSize: "11px", color: "var(--muted)", fontWeight: 800, letterSpacing: "1px" }}>AMOUNT</div>
-                      <div style={{ width: "100px", fontSize: "11px", color: "var(--muted)", fontWeight: 800, letterSpacing: "1px" }}>DATE</div>
+                      <div style={{ width: "180px", textAlign: "center", fontSize: "11px", color: "var(--muted)", fontWeight: 800, letterSpacing: "1px" }}>TRANSACTION ID / UTR</div>
+                      <div style={{ width: "80px", textAlign: "center", fontSize: "11px", color: "var(--muted)", fontWeight: 800, letterSpacing: "1px" }}>AMOUNT</div>
+                      <div style={{ width: "100px", textAlign: "center", fontSize: "11px", color: "var(--muted)", fontWeight: 800, letterSpacing: "1px" }}>DATE</div>
                       <div style={{ width: "120px", textAlign: "center", fontSize: "11px", color: "var(--muted)", fontWeight: 800, letterSpacing: "1px" }}>STATUS</div>
-                      <div style={{ width: "180px", textAlign: "right", fontSize: "11px", color: "var(--muted)", fontWeight: 800, letterSpacing: "1px" }}>ACTIONS</div>
+                      <div style={{ width: "220px", textAlign: "right", fontSize: "11px", color: "var(--muted)", fontWeight: 800, letterSpacing: "1px" }}>ACTIONS</div>
                    </div>
 
                    {(() => {
@@ -1526,45 +1572,59 @@ export default function AdminDashboard() {
                           <div style={{ width: "40px", textAlign: "center", fontSize: "13px", fontWeight: 700, color: "var(--muted)" }}>{String(i + 1).padStart(2, '0')}</div>
                           <div style={{ flex: 1, marginLeft: "20px" }}>
                              <div style={{ fontSize: "15px", fontWeight: 800, color: "#fff" }}>{sub.name || 'Unknown User'}</div>
-                             <div style={{ fontSize: "12px", color: "var(--muted)", marginTop: "4px" }}>{sub.email || '—'}</div>
+                             <div style={{ fontSize: "11px", color: "var(--muted)", marginTop: "6px", display: "flex", flexDirection: "column", gap: "2px" }}>
+                                <span>📧 {sub.email || '—'}</span>
+                                <span style={{ color: "var(--accent)" }}>📱 {sub.phone || 'No Mobile Provided'}</span>
+                             </div>
                           </div>
-                          <div style={{ width: "150px" }}>
+                          <div style={{ width: "180px", display: "flex", justifyContent: "center" }}>
                              <div style={{ display: "flex", alignItems: "center", gap: "6px", background: "rgba(16, 185, 129, 0.1)", padding: "4px 8px", borderRadius: "6px", border: "1px solid rgba(16, 185, 129, 0.2)", width: "fit-content", maxWidth: "100%" }}>
-                                <span style={{ fontSize: "12px", color: "#10b981", fontWeight: 800, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "100px" }}>
-                                  {sub.generatedCode || sub.utr || '—'}
+                                <span style={{ fontSize: "12px", color: "#10b981", fontWeight: 800, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "130px", textAlign: "center" }}>
+                                  {sub.utr || '—'}
                                 </span>
-                                {(sub.generatedCode || sub.utr) && (
-                                  <span style={{ cursor: "pointer", fontSize: "14px", opacity: 0.7, transition: "0.2s" }} onMouseEnter={e => e.target.style.opacity = 1} onMouseLeave={e => e.target.style.opacity = 0.7} onClick={() => { navigator.clipboard.writeText(sub.generatedCode || sub.utr); showToast("Copied to clipboard! 📋"); }} title="Copy Code">
+                                {sub.utr && (
+                                  <span style={{ cursor: "pointer", fontSize: "14px", opacity: 0.7, transition: "0.2s" }} onMouseEnter={e => e.target.style.opacity = 1} onMouseLeave={e => e.target.style.opacity = 0.7} onClick={() => { navigator.clipboard.writeText(sub.utr); showToast("Copied Transaction ID! 📋"); }} title="Copy Code">
                                     📋
                                   </span>
                                 )}
                              </div>
                           </div>
-                          <div style={{ width: "80px", fontSize: "14px", fontWeight: 800, color: "#fff" }}>₹{sub.amount || '—'}</div>
-                          <div style={{ width: "100px", display: "flex", flexDirection: "column", gap: "4px" }}>
+                          <div style={{ width: "80px", textAlign: "center", fontSize: "14px", fontWeight: 800, color: "#fff" }}>₹{sub.amount || '—'}</div>
+                          <div style={{ width: "100px", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", gap: "4px" }}>
                              <div style={{ fontSize: "11px", color: "var(--muted)", whiteSpace: "nowrap" }}><strong style={{color:"#cbd5e1"}}>Req:</strong> {(sub.createdAt || sub.submittedAt || sub.date) ? new Date(sub.createdAt || sub.submittedAt || sub.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}</div>
                              {sub.processedAt && <div style={{ fontSize: "11px", color: "var(--accent)", whiteSpace: "nowrap" }}><strong style={{color:"#00f5d4"}}>Upd:</strong> {new Date(sub.processedAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</div>}
                           </div>
                           
-                          <div style={{ width: "120px", display: "flex", justifyContent: "center" }}>
+                          <div style={{ width: "120px", display: "flex", justifyContent: "center", flexDirection: "column", alignItems: "center", gap: "4px" }}>
                              {(() => {
                                const st = (sub.status || 'pending').toLowerCase();
                                if (st === 'approved') return <span style={{ background: "rgba(16, 185, 129, 0.1)", color: "#10b981", border: "1px solid rgba(16, 185, 129, 0.3)", padding: "4px 10px", borderRadius: "12px", fontSize: "11px", fontWeight: 800 }}>✅ APPROVED</span>;
-                               if (st === 'rejected') return <span style={{ background: "rgba(239, 68, 68, 0.1)", color: "#ef4444", border: "1px solid rgba(239, 68, 68, 0.3)", padding: "4px 10px", borderRadius: "12px", fontSize: "11px", fontWeight: 800 }}>❌ REJECTED</span>;
+                               if (st === 'rejected') return (
+                                 <>
+                                   <span style={{ background: "rgba(239, 68, 68, 0.1)", color: "#ef4444", border: "1px solid rgba(239, 68, 68, 0.3)", padding: "4px 10px", borderRadius: "12px", fontSize: "11px", fontWeight: 800 }}>❌ REJECTED</span>
+                                   {sub.rejectionReason && <div style={{ fontSize: "9px", color: "#ef4444", textAlign: "center", maxWidth: "100px" }}>{sub.rejectionReason}</div>}
+                                 </>
+                               );
                                return <span style={{ background: "rgba(245, 158, 11, 0.1)", color: "#f59e0b", border: "1px solid rgba(245, 158, 11, 0.3)", padding: "4px 10px", borderRadius: "12px", fontSize: "11px", fontWeight: 800 }}>⌛ PENDING</span>;
                              })()}
                           </div>
 
-                          <div style={{ width: "180px", display: "flex", gap: "8px", justifyContent: "flex-end", alignItems: "center" }}>
+                          <div style={{ width: "220px", display: "flex", gap: "8px", justifyContent: "flex-end", alignItems: "center" }}>
                              {(sub.status || 'pending').toLowerCase() === 'pending' ? (
                                <>
-                                 <button onClick={() => processSubmission(sub._id, 'rejected')} className="action-btn delete-btn" style={{ padding: "6px 12px", fontSize: "11px" }}>REJECT</button>
+                                 <button onClick={() => setEditSubmission(sub)} className="action-btn edit-btn" style={{ padding: "6px 12px", fontSize: "11px" }}>EDIT</button>
+                                 <button onClick={() => setRejectionModal(sub)} className="action-btn delete-btn" style={{ padding: "6px 12px", fontSize: "11px" }}>REJECT</button>
                                  <button onClick={() => processSubmission(sub._id, 'approved', 'premium')} className="action-btn edit-btn" style={{ borderColor: '#10b981', color: '#10b981', padding: "6px 12px", fontSize: "11px" }}>APPROVE ✅</button>
                                </>
                              ) : (
-                               <span style={{ fontSize: "13px", color: "var(--muted)", fontStyle: "italic", paddingRight: "4px" }}>
-                                 {sub.status.charAt(0).toUpperCase() + sub.status.slice(1)}
-                               </span>
+                               <div style={{ display: 'flex', gap: '8px' }}>
+                                 {sub.status === 'rejected' && (
+                                   <button onClick={() => sendCorrectionLink(sub._id)} className="action-btn edit-btn" style={{ background: 'rgba(59, 130, 246, 0.1)', borderColor: 'rgba(59, 130, 246, 0.4)', color: '#60a5fa', padding: "6px 12px", fontSize: "11px" }}>📧 SEND LINK</button>
+                                 )}
+                                 <span style={{ fontSize: "13px", color: "var(--muted)", fontStyle: "italic", paddingRight: "4px" }}>
+                                   {sub.status.charAt(0).toUpperCase() + sub.status.slice(1)}
+                                 </span>
+                               </div>
                              )}
                           </div>
                        </div>
@@ -1991,6 +2051,175 @@ export default function AdminDashboard() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* 📊 Exam History Modal */}
+      {viewAttempts && (
+        <div style={{ position: "fixed", top: 0, left: 0, width: "100%", height: "100%", background: "rgba(0,0,0,0.85)", backdropFilter: "blur(10px)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}>
+          <div className="glass-card" style={{ width: "100%", maxWidth: "800px", maxHeight: "85vh", padding: "32px", borderRadius: "24px", background: "#0b1221", border: "1px solid var(--border2)", display: "flex", flexDirection: "column" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "24px", alignItems: "center" }}>
+              <div>
+                <h2 style={{ fontSize: "18px", fontWeight: 800 }}>Exam History: <span style={{ color: "var(--accent)" }}>{viewAttempts.name}</span></h2>
+                <p style={{ color: "var(--muted)", fontSize: "11px" }}>Viewing complete activity log for {viewAttempts.email}</p>
+              </div>
+              <button onClick={() => setViewAttempts(null)} style={{ background: "rgba(255,255,255,0.05)", border: "1px solid var(--border)", color: "#fff", width: "36px", height: "36px", borderRadius: "50%", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+            </div>
+
+            <div style={{ flex: 1, overflowY: "auto", border: "1px solid rgba(255,255,255,0.05)", borderRadius: "16px" }} className="no-scrollbar">
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
+                <thead style={{ position: "sticky", top: 0, background: "rgba(11, 18, 33, 0.98)", zIndex: 5 }}>
+                  <tr style={{ background: "rgba(255,255,255,0.02)" }}>
+                    <th style={{ padding: "12px", textAlign: "left", color: "var(--muted)", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>#</th>
+                    <th style={{ padding: "12px", textAlign: "left", color: "var(--muted)", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>EXAM TYPE</th>
+                    <th style={{ padding: "12px", textAlign: "center", color: "var(--muted)", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>SCORE</th>
+                    <th style={{ padding: "12px", textAlign: "center", color: "var(--muted)", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>ACCURACY</th>
+                    <th style={{ padding: "12px", textAlign: "center", color: "var(--muted)", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>TIME</th>
+                    <th style={{ padding: "12px", textAlign: "right", color: "var(--muted)", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>DATE</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(viewAttempts.attempts && viewAttempts.attempts.length > 0) ? (
+                    [...viewAttempts.attempts].reverse().map((att, i) => (
+                      <tr key={i} style={{ borderBottom: "1px solid rgba(255,255,255,0.03)", background: i % 2 === 0 ? "rgba(255,255,255,0.01)" : "transparent" }}>
+                        <td style={{ padding: "12px", color: "var(--muted)" }}>{String(viewAttempts.attempts.length - i).padStart(2, '0')}</td>
+                        <td style={{ padding: "12px", fontWeight: 700 }}>{att.examType || 'Regular Test'}</td>
+                        <td style={{ padding: "12px", textAlign: "center", fontWeight: 800, color: att.pct >= 75 ? "#10b981" : att.pct >= 40 ? "#f59e0b" : "#ef4444" }}>
+                          {att.score} / {att.total}
+                        </td>
+                        <td style={{ padding: "12px", textAlign: "center" }}>
+                           <div style={{ display: "inline-block", padding: "2px 10px", background: "rgba(255,255,255,0.05)", borderRadius: "20px", fontSize: "11px", fontWeight: 700, border: "1px solid rgba(255,255,255,0.1)" }}>{att.pct}%</div>
+                        </td>
+                        <td style={{ padding: "12px", textAlign: "center", color: "var(--muted)" }}>
+                          {Math.floor(att.timeUsed / 60)}m {att.timeUsed % 60}s
+                        </td>
+                        <td style={{ padding: "12px", textAlign: "right", color: "var(--muted)" }}>
+                          {new Date(att.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan="6" style={{ padding: "40px", textAlign: "center", color: "var(--muted)" }}>No exam data found for this student.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <div style={{ marginTop: "24px", display: "flex", justifyContent: "flex-end" }}>
+              <button onClick={() => setViewAttempts(null)} className="btn-glow" style={{ padding: "10px 32px", background: "var(--accent)", color: "#000", border: "none", borderRadius: "12px", fontWeight: 800, cursor: "pointer" }}>Close History</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 📝 Edit Submission Modal */}
+      {editSubmission && (
+        <div style={{ position: "fixed", top: 0, left: 0, width: "100%", height: "100%", background: "rgba(0,0,0,0.85)", backdropFilter: "blur(10px)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}>
+          <div className="glass-card" style={{ width: "100%", maxWidth: "500px", padding: "32px", borderRadius: "24px", background: "#0b1221", border: "1px solid var(--border2)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "24px" }}>
+              <h2 style={{ fontSize: "18px", fontWeight: 800 }}>Edit Pending Request</h2>
+              <button onClick={() => setEditSubmission(null)} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: "20px" }}>✕</button>
+            </div>
+            
+            <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+              <div>
+                <label style={{ fontSize: "11px", fontWeight: 700, color: "var(--muted)", display: "block", marginBottom: "8px" }}>STUDENT NAME</label>
+                <input 
+                  value={editSubmission.name} 
+                  onChange={e => setEditSubmission({...editSubmission, name: e.target.value})}
+                  style={{ width: "100%", background: "rgba(0,0,0,0.3)", border: "1px solid var(--border2)", borderRadius: "10px", color: "#fff", padding: "10px", outline: "none" }}
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: "11px", fontWeight: 700, color: "var(--muted)", display: "block", marginBottom: "8px" }}>EMAIL ADDRESS</label>
+                <input 
+                  value={editSubmission.email} 
+                  onChange={e => setEditSubmission({...editSubmission, email: e.target.value})}
+                  style={{ width: "100%", background: "rgba(0,0,0,0.3)", border: "1px solid var(--border2)", borderRadius: "10px", color: "#fff", padding: "10px", outline: "none" }}
+                />
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+                <div>
+                  <label style={{ fontSize: "11px", fontWeight: 700, color: "var(--muted)", display: "block", marginBottom: "8px" }}>PHONE NUMBER</label>
+                  <input 
+                    value={editSubmission.phone || ''} 
+                    onChange={e => setEditSubmission({...editSubmission, phone: e.target.value})}
+                    placeholder="e.g., 9966XXXXXX"
+                    style={{ width: "100%", background: "rgba(0,0,0,0.3)", border: "1px solid var(--border2)", borderRadius: "10px", color: "#fff", padding: "10px", outline: "none" }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: "11px", fontWeight: 700, color: "var(--muted)", display: "block", marginBottom: "8px" }}>AMOUNT (₹)</label>
+                  <input 
+                    type="number"
+                    value={editSubmission.amount || 0} 
+                    onChange={e => setEditSubmission({...editSubmission, amount: Number(e.target.value)})}
+                    style={{ width: "100%", background: "rgba(0,0,0,0.3)", border: "1px solid var(--border2)", borderRadius: "10px", color: "#fff", padding: "10px", outline: "none" }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label style={{ fontSize: "11px", fontWeight: 700, color: "var(--muted)", display: "block", marginBottom: "8px" }}>TRANSACTION ID / UTR</label>
+                <input 
+                  value={editSubmission.utr} 
+                  onChange={e => setEditSubmission({...editSubmission, utr: e.target.value})}
+                  style={{ width: "100%", background: "rgba(0,0,0,0.3)", border: "1px solid var(--border2)", borderRadius: "10px", color: "#fff", padding: "10px", outline: "none" }}
+                />
+              </div>
+
+              <div style={{ display: "flex", gap: "16px", marginTop: "12px" }}>
+                <button onClick={() => setEditSubmission(null)} style={{ flex: 1, padding: "12px", background: "none", border: "1px solid var(--border2)", borderRadius: "10px", color: "var(--muted)", cursor: "pointer" }}>Cancel</button>
+                <button onClick={handleUpdateSubmission} style={{ flex: 1, padding: "12px", background: "var(--accent)", color: "#000", border: "none", borderRadius: "10px", fontWeight: 800, cursor: "pointer" }}>Save Changes 📝</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ❌ Rejection Reason Modal */}
+      {rejectionModal && (
+        <div style={{ position: "fixed", top: 0, left: 0, width: "100%", height: "100%", background: "rgba(0,0,0,0.85)", backdropFilter: "blur(10px)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}>
+           <div className="glass-card" style={{ width: "100%", maxWidth: "450px", padding: "32px", borderRadius: "24px", background: "#0b1221", border: "1px solid var(--border2)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "20px" }}>
+                 <h2 style={{ fontSize: "18px", fontWeight: 800, color: "#ef4444" }}>Reject Request ❌</h2>
+                 <button onClick={() => { setRejectionModal(null); setRejectionReason(""); }} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: "20px" }}>✕</button>
+              </div>
+              
+              <div style={{ marginBottom: "24px" }}>
+                 <p style={{ fontSize: "13px", color: "#fff", marginBottom: "16px" }}>Why are you rejecting <span style={{ fontWeight: 800 }}>{rejectionModal.name}</span>'s request?</p>
+                 <textarea 
+                   autoFocus
+                   value={rejectionReason}
+                   onChange={e => setRejectionReason(e.target.value)}
+                   placeholder="e.g., Mismatched UTR number, Amount difference, Invalid screenshot..."
+                   style={{ width: "100%", height: "100px", background: "rgba(0,0,0,0.3)", border: "1px solid var(--border2)", borderRadius: "12px", color: "#fff", padding: "12px", fontSize: "14px", outline: "none", resize: "none" }}
+                 />
+                 
+                 <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginTop: "12px" }}>
+                   {["Mismatched UTR", "Amount Difference", "Invalid Screenshot", "Fake Payment Proof"].map(t => (
+                     <button key={t} onClick={() => setRejectionReason(t)} style={{ padding: "4px 10px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "20px", fontSize: "10px", color: "var(--muted)", cursor: "pointer", transition: "0.2s" }} onMouseEnter={e => e.target.style.background = "rgba(255,255,255,0.1)"} onMouseLeave={e => e.target.style.background = "rgba(255,255,255,0.05)"}>
+                       {t}
+                     </button>
+                   ))}
+                 </div>
+              </div>
+
+              <div style={{ display: "flex", gap: "12px" }}>
+                 <button onClick={() => { setRejectionModal(null); setRejectionReason(""); }} style={{ flex: 1, padding: "12px", background: "rgba(255,255,255,0.05)", color: "#fff", border: "none", borderRadius: "12px", fontWeight: 800, cursor: "pointer" }}>Cancel</button>
+                 <button 
+                   onClick={() => processSubmission(rejectionModal._id, 'rejected', null, rejectionReason)} 
+                   disabled={!rejectionReason.trim()}
+                   style={{ flex: 1, padding: "12px", background: "#ef4444", color: "#fff", border: "none", borderRadius: "12px", fontWeight: 800, cursor: "pointer", opacity: rejectionReason.trim() ? 1 : 0.5 }}
+                 >
+                   Confirm Reject
+                 </button>
+              </div>
+           </div>
         </div>
       )}
 

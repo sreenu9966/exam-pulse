@@ -28,6 +28,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<LandingPage initialView="home" />} />
           <Route path="/login" element={<LandingPage initialView="login" />} />
+          <Route path="/payment/re-submit/:id" element={<LandingPage initialView="correction" />} />
           <Route path="/pricing" element={<LandingPage initialView="pricing" />} />
           <Route path="/user/home" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
           <Route path="/user/exam" element={<ProtectedRoute><ExamPage /></ProtectedRoute>} />

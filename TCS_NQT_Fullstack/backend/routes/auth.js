@@ -397,4 +397,46 @@ router.post('/coupon/apply', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// GET /api/auth/submission/:id — Fetch submission for correction (Public)
+router.get('/submission/:id', async (req, res) => {
+  try {
+    const sub = await Submission.findById(req.params.id);
+    if (!sub) return res.status(404).json({ error: 'Submission not found' });
+    if (sub.status === 'approved') return res.status(400).json({ error: 'This payment is already approved.' });
+    
+    // Return only necessary fields for the form
+    res.json({
+      name: sub.name,
+      email: sub.email,
+      phone: sub.phone,
+      utr: sub.utr,
+      amount: sub.amount,
+      status: sub.status,
+      rejectionReason: sub.rejectionReason
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// PUT /api/auth/submission/:id — Resubmit updated payment details (Public)
+router.put('/submission/:id', async (req, res) => {
+  try {
+    const { name, email, phone, utr, amount } = req.body;
+    const sub = await Submission.findById(req.params.id);
+    if (!sub) return res.status(404).json({ error: 'Submission not found' });
+    if (sub.status === 'approved') return res.status(400).json({ error: 'Cannot edit an approved submission.' });
+
+    // Update and RESET to pending
+    sub.name = name || sub.name;
+    sub.email = email || sub.email;
+    sub.phone = phone || sub.phone;
+    sub.utr = (utr || sub.utr).trim().toUpperCase();
+    sub.amount = amount || sub.amount;
+    sub.status = 'pending';
+    sub.rejectionReason = ''; // Clear reason on resubmit
+    
+    await sub.save();
+    res.json({ success: true, message: 'Details updated! Admin will re-verify shortly. ⏳' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 module.exports = router;

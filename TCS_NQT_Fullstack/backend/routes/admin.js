@@ -11,6 +11,7 @@ const Issue = require('../models/Issue');
 const Offer = require('../models/Offer');
 const Coupon = require('../models/Coupon');
 const GamifiedOffer = require('../models/GamifiedOffer');
+const { sendEmail } = require('../utils/email');
 
 // Generate access code: UTR-YYYYMMDD-RANDOMHASH
 function genCode(utr) {
@@ -62,7 +63,8 @@ function adminAuth(req, res, next) {
 // GET /api/admin/submissions
 router.get('/submissions', adminAuth, async (req, res) => {
   try {
-    const subs = await Submission.find().sort({ submittedAt: -1 });
+    // Exclude exam submissions (which always have a numeric 'score') so we ONLY get Payment Requests.
+    const subs = await Submission.find({ score: { $exists: false } }).sort({ submittedAt: -1 });
     res.json(subs);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -108,8 +110,71 @@ router.post('/approve/:id', adminAuth, async (req, res) => {
 // POST /api/admin/reject/:id
 router.post('/reject/:id', adminAuth, async (req, res) => {
   try {
-    const sub = await Submission.findByIdAndUpdate(req.params.id, { status: 'rejected', processedAt: new Date() }, { new: true });
-    logActivity('REJECT', `Rejected submission ${sub?.name || req.params.id}`);
+    const { reason } = req.body;
+    const sub = await Submission.findByIdAndUpdate(req.params.id, { 
+      status: 'rejected', 
+      rejectionReason: reason || 'Rejected by Admin',
+      processedAt: new Date() 
+    }, { new: true });
+    
+    logActivity('REJECT', `Rejected submission ${sub?.name || req.params.id}${reason ? ' Reason: ' + reason : ''}`);
+    res.json({ success: true, submission: sub });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/admin/submissions/:id/send-link — Send correction link to student
+router.post('/submissions/:id/send-link', adminAuth, async (req, res) => {
+  try {
+    const sub = await Submission.findById(req.params.id);
+    if (!sub) return res.status(404).json({ error: 'Submission not found' });
+    
+    const publicUrl = process.env.PUBLIC_URL || 'http://localhost:5173';
+    const correctionUrl = `${publicUrl}/payment/re-submit/${sub._id}`;
+
+    const html = `
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #eee; padding: 20px; border-radius: 10px;">
+        <h2 style="color: #ef4444;">Action Required: Payment Correction</h2>
+        <p>Dear ${sub.name},</p>
+        <p>Your payment request (UTR: ${sub.utr}) requires a correction before it can be approved.</p>
+        ${sub.rejectionReason ? `<p><strong>Reason provided by Admin:</strong> ${sub.rejectionReason}</p>` : ''}
+        <p>Please click the button below to fix your details and resubmit:</p>
+        <a href="${correctionUrl}" style="display: inline-block; padding: 12px 24px; background: #00f5d4; color: #000; text-decoration: none; border-radius: 8px; fontWeight: 800;">Fix & Resubmit Now</a>
+        <p style="margin-top: 20px; font-size: 12px; color: #666;">If the button doesn't work, copy and paste this link: ${correctionUrl}</p>
+        <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
+        <p style="font-size: 12px; color: #999;">BITmCQ Support Team</p>
+      </div>
+    `;
+
+    const result = await sendEmail({
+      to: sub.email,
+      subject: 'Correction Needed: Your BITmCQ Payment Request',
+      html
+    });
+
+    if (result.success) {
+      logActivity('SEND_LINK', `Sent correction link to ${sub.email}`);
+      res.json({ success: true, message: 'Correction link sent successfully! 📧' });
+    } else {
+      res.status(500).json({ error: 'Failed to send email. Check SMTP settings.' });
+    }
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// PUT /api/admin/submissions/:id — Update submission details
+router.put('/submissions/:id', adminAuth, async (req, res) => {
+  try {
+    const { name, email, phone, utr, amount } = req.body;
+    const update = {};
+    if (name) update.name = name;
+    if (email) update.email = email;
+    if (phone) update.phone = phone;
+    if (utr) update.utr = utr;
+    if (amount !== undefined) update.amount = amount;
+
+    const sub = await Submission.findByIdAndUpdate(req.params.id, update, { new: true });
+    if (!sub) return res.status(404).json({ error: 'Submission not found' });
+    
+    logActivity('EDIT_SUBMISSION', `Edited submission ${sub.name} (UTR: ${sub.utr})`);
     res.json({ success: true, submission: sub });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

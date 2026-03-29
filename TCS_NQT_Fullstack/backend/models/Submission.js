@@ -28,6 +28,7 @@ const submissionSchema = new mongoose.Schema({
   amount: Number,
   status: { type: String, default: 'pending', enum: ['pending', 'approved', 'rejected'] },
   generatedCode: String,
+  rejectionReason: String,
   processedAt: Date,
 
   date: { type: Date, default: Date.now, index: true },

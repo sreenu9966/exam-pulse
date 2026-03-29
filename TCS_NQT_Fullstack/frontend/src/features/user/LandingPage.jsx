@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
 
@@ -7,6 +7,7 @@ import { API_BASE_URL as API } from '../../config';
 
 export default function LandingPage({ initialView = 'home' }) {
   const navigate = useNavigate();
+  const { id } = useParams();
   const { login } = useAuth();
 
   // Views: 'home', 'pricing', 'payment', 'login', 'setup', 'admin'
@@ -37,6 +38,23 @@ export default function LandingPage({ initialView = 'home' }) {
       if (r.data && r.data.upiId) setUpiId(r.data.upiId);
     }).catch(e => console.error("UPI loading failed", e));
   }, []);
+
+  // Fetch submission if in correction mode
+  useEffect(() => {
+    if (view === 'correction' && id) {
+      setLoading(true);
+      axios.get(`${API}/auth/submission/${id}`)
+        .then(r => {
+          setPayName(r.data.name);
+          setPayEmail(r.data.email);
+          setPayPhone(r.data.phone);
+          setPayUtr(r.data.utr);
+          if (r.data.rejectionReason) setError(`REJECTION REASON: ${r.data.rejectionReason}`);
+        })
+        .catch(e => setError("Failed to load submission. It may be already approved or doesn't exist."))
+        .finally(() => setLoading(false));
+    }
+  }, [view, id]);
 
   // Login/Setup State
   const [code, setCode] = useState('');
@@ -157,6 +175,18 @@ export default function LandingPage({ initialView = 'home' }) {
     } finally { setLoading(false); }
   };
 
+  const handleCorrectionSubmit = async () => {
+    if (!payName || !payEmail || !payUtr || !payPhone) return setError('All fields required');
+    setLoading(true); setError(''); setSuccess('');
+    try {
+      await axios.put(`${API}/auth/submission/${id}`, { name: payName, email: payEmail, phone: payPhone, utr: payUtr });
+      setSuccess('Your details have been updated and resubmitted! 🎉 Admin will verify it shortly.');
+      setTimeout(() => navigate('/'), 4000);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Update failed');
+    } finally { setLoading(false); }
+  };
+
   return (
     <>
       {/* Global Navbar */}
@@ -169,10 +199,10 @@ export default function LandingPage({ initialView = 'home' }) {
           </div>
         </div>
         <div style={{ display: 'flex', gap: '48px', alignItems: 'center' }}>
-          {['home', 'pricing', 'login'].map(v => (
+          {view !== 'correction' && ['home', 'pricing', 'login'].map(v => (
             <button key={v} onClick={() => setView(v)} style={{ background: 'transparent', border: 'none', color: view === v ? 'var(--accent)' : 'var(--muted)', fontSize: '15px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1.5px', padding: '6px 10px', cursor: 'pointer', transition: 'color 0.2s', fontFamily: 'var(--font-heading)' }} onMouseEnter={e => e.currentTarget.style.color='var(--accent)'} onMouseLeave={e => { if(view !== v) e.currentTarget.style.color='var(--muted)' }}>{v}</button>
           ))}
-          <button onClick={() => setView('payment')} style={{ background: 'linear-gradient(135deg, var(--accent), var(--accent2))', border: 'none', color: '#000', padding: '10px 24px', borderRadius: '10px', fontSize: '12px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px', boxShadow: '0 4px 15px var(--accent-glow)', cursor: 'pointer', transition: 'transform 0.2s' }} onMouseEnter={e => e.currentTarget.style.transform='translateY(-2px)'} onMouseLeave={e => e.currentTarget.style.transform='none'}>Get Access</button>
+          {view !== 'correction' && <button onClick={() => setView('payment')} style={{ background: 'linear-gradient(135deg, var(--accent), var(--accent2))', border: 'none', color: '#000', padding: '10px 24px', borderRadius: '10px', fontSize: '12px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px', boxShadow: '0 4px 15px var(--accent-glow)', cursor: 'pointer', transition: 'transform 0.2s' }} onMouseEnter={e => e.currentTarget.style.transform='translateY(-2px)'} onMouseLeave={e => e.currentTarget.style.transform='none'}>Get Access</button>}
         </div>
       </nav>
 
@@ -502,6 +532,41 @@ export default function LandingPage({ initialView = 'home' }) {
 
             <button className="btn-verify" onClick={handleSetup} disabled={loading} style={{ marginBottom: '16px' }}>{loading ? 'Finalizing...' : 'Complete Profile'}</button>
             <button className="upi-back" style={{ justifyContent: 'center', width: '100%', marginBottom: 0 }} onClick={() => changeView('login')}>Use a different code</button>
+          </div>
+        </div>
+      )}
+
+      {view === 'correction' && (
+        <div id="upi-screen" style={{ minHeight: '100vh', display: 'flex', zIndex: 1, width: '100%' }}>
+          <div className="upi-card">
+            <h2 className="upi-title" style={{ color: 'var(--accent)' }}>Fix Your Details 📝</h2>
+            <p className="upi-sub">An administrator noticed some mistakes. Please fix them below to resubmit.</p>
+
+            <div className="utr-section">
+              <span className="utr-label">Correction Details</span>
+              <div style={{ marginBottom: "16px" }}>
+                <label style={{ fontSize: "11px", color: "var(--muted)", fontWeight: 700, display: "block", marginBottom: "8px" }}>YOUR FULL NAME</label>
+                <input className="name-input" placeholder="Your Full Name" value={payName} onChange={e => setPayName(e.target.value)} />
+              </div>
+              <div style={{ marginBottom: "16px" }}>
+                <label style={{ fontSize: "11px", color: "var(--muted)", fontWeight: 700, display: "block", marginBottom: "8px" }}>EMAIL ADDRESS</label>
+                <input className="name-input" type="email" placeholder="Email Address" value={payEmail} onChange={e => setPayEmail(e.target.value)} />
+              </div>
+              <div style={{ marginBottom: "16px" }}>
+                <label style={{ fontSize: "11px", color: "var(--muted)", fontWeight: 700, display: "block", marginBottom: "8px" }}>PHONE (+CODE)</label>
+                <input className="name-input" placeholder="Phone Number with Country Code (+91...)" value={payPhone} onChange={e => setPayPhone(e.target.value)} />
+              </div>
+              <div style={{ marginBottom: "16px" }}>
+                <label style={{ fontSize: "11px", color: "var(--muted)", fontWeight: 700, display: "block", marginBottom: "8px" }}>TRANSACTION ID / UTR</label>
+                <input className="utr-input" placeholder="Transaction ID (UTR Number)" value={payUtr} onChange={e => setPayUtr(e.target.value)} />
+              </div>
+
+              {error && <div style={{ color: 'var(--danger)', fontSize: '13px', marginTop: '10px', background: 'rgba(239, 68, 68, 0.1)', padding: '12px', borderRadius: '10px', border: '1px solid rgba(239, 68, 68, 0.2)' }}>⚠ {error}</div>}
+              {success && <div style={{ color: 'var(--accent)', fontSize: '13px', marginTop: '10px', background: 'rgba(0, 245, 212, 0.1)', padding: '12px', borderRadius: '10px', border: '1px solid rgba(0, 245, 212, 0.2)' }}>✅ {success}</div>}
+            </div>
+
+            <button className="btn-verify" onClick={handleCorrectionSubmit} disabled={loading || success}>{loading ? 'Saving...' : 'Save & Resubmit Changes 🚀'}</button>
+            <p style={{ marginTop: '16px', fontSize: '12px', color: 'var(--muted)', textAlign: 'center' }}>This will reset your status to <span style={{ color: 'var(--gold)', fontWeight: 800 }}>PENDING</span>.</p>
           </div>
         </div>
       )}
