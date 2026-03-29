@@ -72,7 +72,6 @@ router.get('/submissions', adminAuth, async (req, res) => {
 // POST /api/admin/approve/:id
 router.post('/approve/:id', adminAuth, async (req, res) => {
   try {
-    const { planType } = req.body; // 'basic' or 'premium'
     const sub = await Submission.findById(req.params.id);
     if (!sub) return res.status(404).json({ error: 'Submission not found' });
 
@@ -84,9 +83,26 @@ router.post('/approve/:id', adminAuth, async (req, res) => {
 
     const existing = await User.findOne({ code });
     if (!existing) {
-      let maxExams = 1; let validUntil = null;
-      if (planType === 'basic') { maxExams = 15; validUntil = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); }
-      else if (planType === 'premium') { maxExams = 9999; validUntil = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000); }
+      let finalPlan = 'free';
+      let maxAttempts = 5;
+      let dailyLimit = 5;
+      let validUntil = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+
+      const pr = sub.planRequested || 'Free Trial';
+      
+      if (pr === 'Basic Plan') {
+        finalPlan = 'basic'; maxAttempts = 9999; dailyLimit = 20;
+        validUntil = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      } else if (pr === 'Pro Plan') {
+        finalPlan = 'pro'; maxAttempts = 9999; dailyLimit = 9999;
+        validUntil = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      } else if (pr === 'Premium Plan') {
+        finalPlan = 'premium'; maxAttempts = 9999; dailyLimit = 9999;
+        validUntil = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+      } else if (pr === 'Lifetime Plan') {
+        finalPlan = 'lifetime'; maxAttempts = 9999; dailyLimit = 9999;
+        validUntil = null; // No expiry
+      }
 
       await User.create({ 
         code, 
@@ -95,10 +111,13 @@ router.post('/approve/:id', adminAuth, async (req, res) => {
         phone: (sub.phone && sub.phone !== 'N/A' && sub.phone.trim() !== '') ? sub.phone : 'N/A',
         utr: sub.utr, 
         status: 'active', 
-        plan: planType || 'free',
-        maxExams,
-        validUntil,
-        attempts: [] 
+        plan: finalPlan,
+        subscription: {
+          planType: finalPlan === 'lifetime' ? 'unlimited' : 'daily_limit',
+          maxAttempts: maxAttempts,
+          dailyExamsLimit: dailyLimit,
+          validUntil: validUntil
+        }
       });
     }
 

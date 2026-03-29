@@ -59,7 +59,7 @@ router.post('/setup', async (req, res) => {
 // POST /api/auth/payment — submit UTR payment request
 router.post('/payment', async (req, res) => {
   try {
-    const { name, email, utr, phone, amount } = req.body;
+    const { name, email, utr, phone, amount, planRequested } = req.body;
     if (!name || !email || !utr || !phone) {
       return res.status(400).json({ error: 'Name, Email, Phone with Country Code, and Transaction ID are required.' });
     }
@@ -75,7 +75,10 @@ router.post('/payment', async (req, res) => {
     const existing = await Submission.findOne({ utr: utr.trim().toUpperCase() });
     if (existing) return res.status(400).json({ error: 'Transaction ID (UTR) already submitted' });
 
-    const sub = await Submission.create({ name, email, utr: utr.trim().toUpperCase(), phone, amount: amount || 1 });
+    const sub = await Submission.create({ 
+      name, email, utr: utr.trim().toUpperCase(), phone, amount: amount || 1, 
+      planRequested: planRequested || 'Free Trial' 
+    });
     res.json({ success: true, submissionId: sub._id, message: 'Payment submitted, awaiting admin approval.' });
   } catch (err) {
     res.status(500).json({ error: err.message });

@@ -28,6 +28,7 @@ const submissionSchema = new mongoose.Schema({
   amount: Number,
   status: { type: String, default: 'pending', enum: ['pending', 'approved', 'rejected'] },
   generatedCode: String,
+  planRequested: { type: String, default: 'Free Trial' },
   rejectionReason: String,
   processedAt: Date,
 

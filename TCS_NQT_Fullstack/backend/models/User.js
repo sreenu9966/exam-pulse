@@ -37,10 +37,11 @@ const userSchema = new mongoose.Schema({
     default: {}
   },
   totalPoints: { type: Number, default: 0 },
-  plan: { type: String, enum: ['free', 'basic', 'premium'], default: 'free' },
+  plan: { type: String, enum: ['free', 'basic', 'pro', 'premium', 'lifetime'], default: 'free' },
   subscription: {
-    planType: { type: String, enum: ['attempts', 'time', 'unlimited'], default: 'attempts' },
+    planType: { type: String, enum: ['attempts', 'time', 'unlimited', 'daily_limit'], default: 'attempts' },
     maxAttempts: { type: Number, default: 2 },
+    dailyExamsLimit: { type: Number, default: 5 }, // For Free/Basic tiers
     validUntil: { type: Date, default: null },
     unlimitedExams: { type: [String], default: [] }
   },

@@ -22,8 +22,24 @@ router.post('/submit', authMiddleware, async (req, res) => {
         return res.status(403).json({ error: `Your time-based subscription expired. Please contact Admin.` });
     }
     
+    // 🛡️ DAILY LIMIT ENFORCEMENT (New)
+    if (sub.planType === 'daily_limit' || (sub.dailyExamsLimit && sub.dailyExamsLimit < 9999)) {
+        const last24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        const dailyAttempts = await Submission.countDocuments({ 
+            userCode: code, 
+            createdAt: { $gte: last24h },
+            score: { $exists: true } // Only count actual exam submissions, not payment requests
+        });
+        
+        if (dailyAttempts >= (sub.dailyExamsLimit || 5)) {
+            return res.status(403).json({ 
+                error: `Daily Limit Reached! 🛑 You have completed ${dailyAttempts} exams in the last 24 hours. Under your current plan, you can only take ${sub.dailyExamsLimit || 5} exams per day. Upgrade to PRO for unlimited access!` 
+            });
+        }
+    }
+
     // Performance Optimization: Use countDocuments instead of loading the whole user.attempts array
-    const attemptCount = await Submission.countDocuments({ userCode: code });
+    const attemptCount = await Submission.countDocuments({ userCode: code, score: { $exists: true } });
     const isUnlimitedForThisExam = sub.unlimitedExams && sub.unlimitedExams.includes(examType);
 
     if (!isUnlimitedForThisExam && sub.planType === 'attempts' && attemptCount >= (sub.maxAttempts || 2)) {

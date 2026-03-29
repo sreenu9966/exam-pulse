@@ -66,6 +66,7 @@ export default function LandingPage({ initialView = 'home' }) {
   const [adminPass, setAdminPass] = useState('');
 
   const [activeOffer, setActiveOffer] = useState({ title: 'Lifetime Access', priceOriginal: 399, priceOffer: 1, discount: '99.7%' });
+  const [selectedPlan, setSelectedPlan] = useState({ name: 'Pro Plan', price: 299 });
   const [reviews, setReviews] = useState([]);
     const [stats, setStats] = useState({ avgRating: 5.0, totalReviews: 0 });
   const [userRating, setUserRating] = useState(() => localStorage.getItem('user_rating') ? parseInt(localStorage.getItem('user_rating')) : 0);
@@ -110,14 +111,25 @@ export default function LandingPage({ initialView = 'home' }) {
   };
   const handlePaymentSubmit = async () => {
     if (!payName || !payEmail || !payUtr || !payPhone) return setError('All fields (Name, Email, Phone, Transaction ID) are required');
+    if (!payName || !payEmail || !payPhone || !payUtr) {
+      setError('Please fill in all details for verification.');
+      return;
+    }
     
     if (!payPhone.startsWith('+')) return setError('Phone number must include Country Code (e.g., +91...)');
     if (!payEmail.includes('@') || !payEmail.includes('.')) return setError('Invalid email address');
 
     setLoading(true); setError(''); setSuccess('');
     try {
-      await axios.post(`${API}/auth/payment`, { name: payName, email: payEmail, phone: payPhone, utr: payUtr, amount: activeOffer.priceOffer });
-      setSuccess('Payment submitted! Admin will verify and send your code to your phone.');
+      const res = await axios.post(`${API}/auth/payment`, { 
+        name: payName, 
+        email: payEmail, 
+        phone: payPhone, 
+        utr: payUtr, 
+        amount: selectedPlan.price,
+        planRequested: selectedPlan.name
+      });
+      setSuccess(res.data.message || 'Payment submitted! Admin will verify and send your code to your phone.');
       setPayName(''); setPayPhone(''); setPayUtr('');
     } catch (err) {
       setError(err.response?.data?.error || 'Payment submission failed');
@@ -371,17 +383,77 @@ export default function LandingPage({ initialView = 'home' }) {
               <h1 className="pay-h1">BITmCQ<br/><em>Full Mock Exam</em></h1>
               <p className="pay-subtitle">Master the exam with 310 Previous Year Questions distributed across 16 Official Sections. Real UI/UX simulation.</p>
 
-              <div className="offer-box">
-                <div className="offer-ribbon">{activeOffer.discount} OFF</div>
-                <div className="offer-label">{activeOffer.title}</div>
-                <div className="price-row">
-                  <div className="price-original">₹{activeOffer.priceOriginal}</div>
-                  <div className="price-offer"><sup>₹</sup>{activeOffer.priceOffer}</div>
+              {/* NEW: 5-Tier Pricing Table */}
+              <div className="pricing-container" style={{ marginTop: '50px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px', alignItems: 'stretch' }}>
+                  
+                  {/* FREE TRIAL */}
+                  <div className="pricing-card" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)' }}>
+                     <div className="plan-name">Free Trial</div>
+                     <div className="plan-price">₹0</div>
+                     <div className="plan-duration">7 Days</div>
+                     <ul className="plan-features">
+                        <li>✅ 5 Exams / day</li>
+                        <li>✅ Basic Analytics</li>
+                        <li>✅ Practice Mode</li>
+                     </ul>
+                     <button className="btn-select-plan" onClick={() => { setSelectedPlan({ name: 'Free Trial', price: 0 }); changeView('payment'); }}>Start Trial</button>
+                  </div>
+
+                  {/* BASIC PLAN */}
+                  <div className="pricing-card" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)' }}>
+                     <div className="plan-name">Basic Plan</div>
+                     <div className="plan-price">₹99</div>
+                     <div className="plan-duration">Per Month</div>
+                     <ul className="plan-features">
+                        <li>✅ 20 Exams / day</li>
+                        <li>✅ Standard Analytics</li>
+                        <li>✅ 310 Authentic PYQs</li>
+                     </ul>
+                     <button className="btn-select-plan" onClick={() => { setSelectedPlan({ name: 'Basic Plan', price: 99 }); changeView('payment'); }}>Select Basic</button>
+                  </div>
+
+                  {/* PRO PLAN (STAR) */}
+                  <div className="pricing-card pro-card" style={{ background: 'rgba(16, 185, 129, 0.05)', border: '1px solid var(--accent)', transform: 'scale(1.05)', position: 'relative' }}>
+                     <div className="best-value">BEST VALUE ⭐</div>
+                     <div className="plan-name" style={{ color: 'var(--accent)' }}>Pro Plan</div>
+                     <div className="plan-price">₹299</div>
+                     <div className="plan-duration">Per Month</div>
+                     <ul className="plan-features">
+                        <li>✅ <strong>Unlimited Exams</strong></li>
+                        <li>✅ Full Analytics</li>
+                        <li>✅ Performance Tracking</li>
+                     </ul>
+                     <button className="btn-select-plan" style={{ background: 'var(--accent)', color: '#000' }} onClick={() => { setSelectedPlan({ name: 'Pro Plan', price: 299 }); changeView('payment'); }}>Go Pro Now</button>
+                  </div>
+
+                  {/* PREMIUM PLAN */}
+                  <div className="pricing-card" style={{ background: 'rgba(139, 92, 246, 0.05)', border: '1px solid #8b5cf6' }}>
+                     <div className="plan-name" style={{ color: '#8b5cf6' }}>Premium</div>
+                     <div className="plan-price">₹1999</div>
+                     <div className="plan-duration">Per Year</div>
+                     <ul className="plan-features">
+                        <li>✅ Unlimited Access</li>
+                        <li>✅ Advanced Reports</li>
+                        <li>✅ Priority Support</li>
+                     </ul>
+                     <button className="btn-select-plan" style={{ borderColor: '#8b5cf6', color: '#8b5cf6' }} onClick={() => { setSelectedPlan({ name: 'Premium Plan', price: 1999 }); changeView('payment'); }}>Choose Premium</button>
+                  </div>
+
+                  {/* LIFETIME PLAN */}
+                  <div className="pricing-card" style={{ background: 'rgba(245, 158, 11, 0.05)', border: '1px solid #f59e0b' }}>
+                     <div className="plan-name" style={{ color: '#f59e0b' }}>Lifetime</div>
+                     <div className="plan-price">₹2999</div>
+                     <div className="plan-duration">One-Time</div>
+                     <ul className="plan-features">
+                        <li>✅ Unlimited Forever</li>
+                        <li>✅ All Future Updates</li>
+                        <li>✅ VIP Badge</li>
+                     </ul>
+                     <button className="btn-select-plan" style={{ borderColor: '#f59e0b', color: '#f59e0b' }} onClick={() => { setSelectedPlan({ name: 'Lifetime Plan', price: 2999 }); changeView('payment'); }}>Get Lifetime</button>
+                  </div>
+
                 </div>
-                <div className="offer-note">Gain instant access to all premium features. <strong>Offer expires soon.</strong></div>
-                
-                <button className="btn-pay-now" onClick={() => changeView('payment')}>Unlock Premium Now</button>
-                <div className="secure-note">💳 Secured via UPI payment</div>
               </div>
 
               <div style={{ marginTop: '30px', display: 'flex', gap: '20px', justifyContent: 'center' }}>
@@ -426,8 +498,13 @@ export default function LandingPage({ initialView = 'home' }) {
             
             {!checkMode ? (
               <>
-                <h2 className="upi-title">Activate Premium</h2>
-                <p className="upi-sub">Follow 3 simple steps to get your access code.</p>
+                 <h2 className="upi-title">{selectedPlan.name}</h2>
+                <p className="upi-sub">Follow 3 simple steps to activate your plan.</p>
+
+                <div className="upi-amount-pill">
+                  <div className="upi-amount-label">Amount Due</div>
+                  <div className="upi-amount-val">₹{selectedPlan.price}</div>
+                </div>
 
                 <div className="upi-id-box">
                   <div style={{ fontSize: '12px', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>UPI ID</div>
@@ -438,7 +515,7 @@ export default function LandingPage({ initialView = 'home' }) {
                 <div className="steps" style={{ marginBottom: '32px' }}>
                    <div style={{ fontSize: '15px', color: 'var(--muted)', marginBottom: '12px', lineHeight: '1.6' }}>
                       <span style={{ color: 'var(--accent)' }}>1.</span> Open your UPI App (GPay, PhonePe, Paytm)<br/>
-                      <span style={{ color: 'var(--accent)' }}>2.</span> Pay exactly <strong>₹{activeOffer.priceOffer}</strong> to the UPI ID above.<br/>
+                      <span style={{ color: 'var(--accent)' }}>2.</span> Pay exactly <strong>₹{selectedPlan.price}</strong> to the UPI ID above.<br/>
                       <span style={{ color: 'var(--accent)' }}>3.</span> Enter your details below to verify.
                    </div>
                 </div>
