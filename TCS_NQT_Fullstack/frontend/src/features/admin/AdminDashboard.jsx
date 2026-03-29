@@ -1526,13 +1526,13 @@ export default function AdminDashboard() {
                           <div style={{ width: "40px", textAlign: "center", fontSize: "13px", fontWeight: 700, color: "var(--muted)" }}>{String(i + 1).padStart(2, '0')}</div>
                           <div style={{ flex: 1, marginLeft: "20px" }}>
                              <div style={{ fontSize: "15px", fontWeight: 800, color: "#fff" }}>{sub.name || 'Unknown User'}</div>
-                             <div style={{ fontSize: "12px", color: "var(--muted)", marginTop: "4px" }}>—</div>
+                             <div style={{ fontSize: "12px", color: "var(--muted)", marginTop: "4px" }}>{sub.email || '—'}</div>
                           </div>
                           <div style={{ width: "150px" }}>
                              <div style={{ fontSize: "12px", color: "#10b981", fontWeight: 800, background: "rgba(16, 185, 129, 0.1)", padding: "4px 8px", borderRadius: "6px", display: "inline-block", border: "1px solid rgba(16, 185, 129, 0.2)" }}>{sub.generatedCode || sub.utr || '—'}</div>
                           </div>
                           <div style={{ width: "80px", fontSize: "14px", fontWeight: 800, color: "#fff" }}>₹{sub.amount || '—'}</div>
-                          <div style={{ width: "100px", fontSize: "13px", color: "var(--muted)" }}>—</div>
+                          <div style={{ width: "100px", fontSize: "13px", color: "var(--muted)" }}>{sub.createdAt ? new Date(sub.createdAt).toLocaleDateString() : '—'}</div>
                           
                           <div style={{ width: "120px", display: "flex", justifyContent: "center" }}>
                              {(() => {
