@@ -1529,10 +1529,22 @@ export default function AdminDashboard() {
                              <div style={{ fontSize: "12px", color: "var(--muted)", marginTop: "4px" }}>{sub.email || '—'}</div>
                           </div>
                           <div style={{ width: "150px" }}>
-                             <div style={{ fontSize: "12px", color: "#10b981", fontWeight: 800, background: "rgba(16, 185, 129, 0.1)", padding: "4px 8px", borderRadius: "6px", display: "inline-block", border: "1px solid rgba(16, 185, 129, 0.2)" }}>{sub.generatedCode || sub.utr || '—'}</div>
+                             <div style={{ display: "flex", alignItems: "center", gap: "6px", background: "rgba(16, 185, 129, 0.1)", padding: "4px 8px", borderRadius: "6px", border: "1px solid rgba(16, 185, 129, 0.2)", width: "fit-content", maxWidth: "100%" }}>
+                                <span style={{ fontSize: "12px", color: "#10b981", fontWeight: 800, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "100px" }}>
+                                  {sub.generatedCode || sub.utr || '—'}
+                                </span>
+                                {(sub.generatedCode || sub.utr) && (
+                                  <span style={{ cursor: "pointer", fontSize: "14px", opacity: 0.7, transition: "0.2s" }} onMouseEnter={e => e.target.style.opacity = 1} onMouseLeave={e => e.target.style.opacity = 0.7} onClick={() => { navigator.clipboard.writeText(sub.generatedCode || sub.utr); showToast("Copied to clipboard! 📋"); }} title="Copy Code">
+                                    📋
+                                  </span>
+                                )}
+                             </div>
                           </div>
                           <div style={{ width: "80px", fontSize: "14px", fontWeight: 800, color: "#fff" }}>₹{sub.amount || '—'}</div>
-                          <div style={{ width: "100px", fontSize: "13px", color: "var(--muted)" }}>{sub.createdAt ? new Date(sub.createdAt).toLocaleDateString() : '—'}</div>
+                          <div style={{ width: "100px", display: "flex", flexDirection: "column", gap: "4px" }}>
+                             <div style={{ fontSize: "11px", color: "var(--muted)", whiteSpace: "nowrap" }}><strong style={{color:"#cbd5e1"}}>Req:</strong> {(sub.createdAt || sub.submittedAt || sub.date) ? new Date(sub.createdAt || sub.submittedAt || sub.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}</div>
+                             {sub.processedAt && <div style={{ fontSize: "11px", color: "var(--accent)", whiteSpace: "nowrap" }}><strong style={{color:"#00f5d4"}}>Upd:</strong> {new Date(sub.processedAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</div>}
+                          </div>
                           
                           <div style={{ width: "120px", display: "flex", justifyContent: "center" }}>
                              {(() => {
