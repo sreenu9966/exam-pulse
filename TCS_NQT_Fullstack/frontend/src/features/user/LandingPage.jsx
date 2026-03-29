@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
@@ -12,6 +12,7 @@ export default function LandingPage({ initialView = 'home' }) {
 
   // Views: 'home', 'pricing', 'payment', 'login', 'setup', 'admin'
   const [view, setView] = useState(initialView);
+  const pricingScrollRef = useRef(null);
 
   useEffect(() => {
     setView(initialView);
@@ -81,8 +82,30 @@ export default function LandingPage({ initialView = 'home' }) {
     }).catch(err => console.error(err));
   }, []);
 
+  // NEW: Auto-center Pricing on Pro Plan (3rd Card)
+  useEffect(() => {
+    if (view === 'pricing' && pricingScrollRef.current) {
+      setTimeout(() => {
+        const container = pricingScrollRef.current;
+        const cards = container.children;
+        if (cards.length >= 3) {
+          const proCard = cards[2]; // 0: Free, 1: Basic, 2: Pro
+          const scrollPos = proCard.offsetLeft - (container.offsetWidth / 2) + (proCard.offsetWidth / 2);
+          container.scrollTo({ left: scrollPos, behavior: 'smooth' });
+        }
+      }, 300); // Small delay for rendering
+    }
+  }, [view]);
+
   const changeView = (v) => {
     setView(v); setError(''); setSuccess('');
+  };
+
+  const scrollPricing = (dir) => {
+    if (pricingScrollRef.current) {
+      const scrollAmount = dir === 'right' ? 320 : -320;
+      pricingScrollRef.current.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+    }
   };
 
   const copyToClipboard = () => {
@@ -377,80 +400,110 @@ export default function LandingPage({ initialView = 'home' }) {
 
       {view === 'pricing' && (
         <>
-          <div className="pay-hero">
-            <div className="pay-hero-inner">
+          <div className="pay-hero" style={{ padding: '80px 0 60px', width: '100%', overflow: 'hidden' }}>
+            <div className="pay-hero-inner" style={{ maxWidth: 'none', width: '100%' }}>
               <div className="pay-eyebrow">Limited Time Offer</div>
               <h1 className="pay-h1">BITmCQ<br/><em>Full Mock Exam</em></h1>
               <p className="pay-subtitle">Master the exam with 310 Previous Year Questions distributed across 16 Official Sections. Real UI/UX simulation.</p>
 
-              {/* NEW: 5-Tier Pricing Table with Side-by-Side Scroll */}
-              <div className="pricing-container" style={{ marginTop: '50px', paddingBottom: '20px' }}>
-                <div className="pricing-scroll-wrapper" style={{ display: 'flex', gap: '20px', overflowX: 'auto', padding: '10px 0 30px', scrollSnapType: 'x mandatory', WebkitOverflowScrolling: 'touch', msOverflowStyle: 'none', scrollbarWidth: 'none' }}>
+              {/* NEW: 5-Tier Pricing Table with Side-by-Side Scroll & Navigation */}
+              <div className="pricing-container" style={{ marginTop: '50px', paddingBottom: '20px', position: 'relative' }}>
+                
+                {/* Scroll Navigation Arrows */}
+                <button className="pricing-nav-btn prev" onClick={() => scrollPricing('left')}>‹</button>
+                <button className="pricing-nav-btn next" onClick={() => scrollPricing('right')}>›</button>
+
+                <div className="pricing-scroll-wrapper" ref={pricingScrollRef} style={{ display: 'flex', gap: '20px', overflowX: 'auto', padding: '10px 0 30px', scrollSnapType: 'x mandatory', WebkitOverflowScrolling: 'touch', msOverflowStyle: 'none', scrollbarWidth: 'none' }}>
                   
                   {/* FREE TRIAL */}
-                  <div className="pricing-card" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)' }}>
-                     <div className="plan-name">Free Trial</div>
-                     <div className="plan-price">₹0</div>
-                     <div className="plan-duration">7 Days</div>
+                  <div className="pricing-card">
+                     <div className="card-badge tier-badge">7-DAY TRIAL</div>
+                     <div className="price-block">
+                        <div className="plan-name">Free Trial</div>
+                        <div className="plan-price-row">
+                           <span className="plan-price">₹0</span>
+                           <span className="plan-duration">/ 7 days</span>
+                        </div>
+                     </div>
                      <ul className="plan-features">
-                        <li>✅ 5 Exams / day</li>
-                        <li>✅ Basic Analytics</li>
-                        <li>✅ Practice Mode</li>
+                        <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--accent)' }}><polyline points="20 6 9 17 4 12"></polyline></svg> 5 Exams / day</li>
+                        <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--accent)' }}><polyline points="20 6 9 17 4 12"></polyline></svg> Basic Analytics</li>
+                        <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--accent)' }}><polyline points="20 6 9 17 4 12"></polyline></svg> Practice Mode</li>
                      </ul>
                      <button className="btn-select-plan" onClick={() => { setSelectedPlan({ name: 'Free Trial', price: 0 }); changeView('payment'); }}>Start Trial</button>
                   </div>
 
                   {/* BASIC PLAN */}
-                  <div className="pricing-card" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)' }}>
-                     <div className="plan-name">Basic Plan</div>
-                     <div className="plan-price">₹99</div>
-                     <div className="plan-duration">Per Month</div>
+                  <div className="pricing-card">
+                     <div className="card-badge basic-badge">STANDARD</div>
+                     <div className="price-block">
+                        <div className="plan-name">Basic Plan</div>
+                        <div className="plan-price-row">
+                           <span className="plan-price">₹99</span>
+                           <span className="plan-duration">/ month</span>
+                        </div>
+                     </div>
                      <ul className="plan-features">
-                        <li>✅ 20 Exams / day</li>
-                        <li>✅ Standard Analytics</li>
-                        <li>✅ 310 Authentic PYQs</li>
+                        <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#38bdf8' }}><polyline points="20 6 9 17 4 12"></polyline></svg> 20 Exams / day</li>
+                        <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#38bdf8' }}><polyline points="20 6 9 17 4 12"></polyline></svg> Standard Analytics</li>
+                        <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#38bdf8' }}><polyline points="20 6 9 17 4 12"></polyline></svg> 310 Authentic PYQs</li>
                      </ul>
                      <button className="btn-select-plan" onClick={() => { setSelectedPlan({ name: 'Basic Plan', price: 99 }); changeView('payment'); }}>Select Basic</button>
                   </div>
 
                   {/* PRO PLAN (STAR) */}
-                  <div className="pricing-card pro-card" style={{ background: 'rgba(16, 185, 129, 0.05)', border: '1px solid var(--accent)', transform: 'scale(1.05)', position: 'relative' }}>
-                     <div className="best-value">BEST VALUE ⭐</div>
-                     <div className="plan-name" style={{ color: 'var(--accent)' }}>Pro Plan</div>
-                     <div className="plan-price">₹299</div>
-                     <div className="plan-duration">Per Month</div>
+                  <div className="pricing-card popular-card">
+                     <div className="best-value">MOST POPULAR</div>
+                     <div className="card-badge pro-badge">RECOMMENDED</div>
+                     <div className="price-block">
+                        <div className="plan-name" style={{ color: 'var(--accent)' }}>Pro Plan</div>
+                        <div className="plan-price-row">
+                           <span className="plan-price">₹299</span>
+                           <span className="plan-duration">/ month</span>
+                        </div>
+                     </div>
                      <ul className="plan-features">
-                        <li>✅ <strong>Unlimited Exams</strong></li>
-                        <li>✅ Full Analytics</li>
-                        <li>✅ Performance Tracking</li>
+                        <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--accent)' }}><polyline points="20 6 9 17 4 12"></polyline></svg> <strong>Unlimited Exams</strong></li>
+                        <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--accent)' }}><polyline points="20 6 9 17 4 12"></polyline></svg> Full Analytics</li>
+                        <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--accent)' }}><polyline points="20 6 9 17 4 12"></polyline></svg> Performance Tracking</li>
                      </ul>
-                     <button className="btn-select-plan" style={{ background: 'var(--accent)', color: '#000' }} onClick={() => { setSelectedPlan({ name: 'Pro Plan', price: 299 }); changeView('payment'); }}>Go Pro Now</button>
+                     <button className="btn-select-plan pro-btn" onClick={() => { setSelectedPlan({ name: 'Pro Plan', price: 299 }); changeView('payment'); }}>Go Pro Now</button>
                   </div>
 
                   {/* PREMIUM PLAN */}
-                  <div className="pricing-card" style={{ background: 'rgba(139, 92, 246, 0.05)', border: '1px solid #8b5cf6' }}>
-                     <div className="plan-name" style={{ color: '#8b5cf6' }}>Premium</div>
-                     <div className="plan-price">₹1999</div>
-                     <div className="plan-duration">Per Year</div>
+                  <div className="pricing-card">
+                     <div className="card-badge premium-badge">ADVANCED</div>
+                     <div className="price-block">
+                        <div className="plan-name" style={{ color: '#8b5cf6' }}>Premium</div>
+                        <div className="plan-price-row">
+                           <span className="plan-price">₹1999</span>
+                           <span className="plan-duration">/ year</span>
+                        </div>
+                     </div>
                      <ul className="plan-features">
-                        <li>✅ Unlimited Access</li>
-                        <li>✅ Advanced Reports</li>
-                        <li>✅ Priority Support</li>
+                        <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#8b5cf6' }}><polyline points="20 6 9 17 4 12"></polyline></svg> Unlimited Access</li>
+                        <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#8b5cf6' }}><polyline points="20 6 9 17 4 12"></polyline></svg> Advanced Reports</li>
+                        <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#8b5cf6' }}><polyline points="20 6 9 17 4 12"></polyline></svg> Priority Support</li>
                      </ul>
-                     <button className="btn-select-plan" style={{ borderColor: '#8b5cf6', color: '#8b5cf6' }} onClick={() => { setSelectedPlan({ name: 'Premium Plan', price: 1999 }); changeView('payment'); }}>Choose Premium</button>
+                     <button className="btn-select-plan" onClick={() => { setSelectedPlan({ name: 'Premium Plan', price: 1999 }); changeView('payment'); }}>Choose Premium</button>
                   </div>
 
                   {/* LIFETIME PLAN */}
-                  <div className="pricing-card" style={{ background: 'rgba(245, 158, 11, 0.05)', border: '1px solid #f59e0b' }}>
-                     <div className="plan-name" style={{ color: '#f59e0b' }}>Lifetime</div>
-                     <div className="plan-price">₹2999</div>
-                     <div className="plan-duration">One-Time</div>
+                  <div className="pricing-card">
+                     <div className="card-badge lifetime-badge">EXCLUSIVE</div>
+                     <div className="price-block">
+                        <div className="plan-name" style={{ color: '#f59e0b' }}>Lifetime</div>
+                        <div className="plan-price-row">
+                           <span className="plan-price">₹2999</span>
+                           <span className="plan-duration">/ forever</span>
+                        </div>
+                     </div>
                      <ul className="plan-features">
-                        <li>✅ Unlimited Forever</li>
-                        <li>✅ All Future Updates</li>
-                        <li>✅ VIP Badge</li>
+                        <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#f59e0b' }}><polyline points="20 6 9 17 4 12"></polyline></svg> Unlimited Forever</li>
+                        <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#f59e0b' }}><polyline points="20 6 9 17 4 12"></polyline></svg> All Future Updates</li>
+                        <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#f59e0b' }}><polyline points="20 6 9 17 4 12"></polyline></svg> VIP Badge</li>
                      </ul>
-                     <button className="btn-select-plan" style={{ borderColor: '#f59e0b', color: '#f59e0b' }} onClick={() => { setSelectedPlan({ name: 'Lifetime Plan', price: 2999 }); changeView('payment'); }}>Get Lifetime</button>
+                     <button className="btn-select-plan" onClick={() => { setSelectedPlan({ name: 'Lifetime Plan', price: 2999 }); changeView('payment'); }}>Get Lifetime</button>
                   </div>
 
                 </div>
