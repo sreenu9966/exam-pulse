@@ -37,6 +37,16 @@ const userSchema = new mongoose.Schema({
     default: {}
   },
   totalPoints: { type: Number, default: 0 },
+  currentStreak: { type: Number, default: 0 },
+  lastStreakDate: { type: Date, default: null },
+  referralCode: { type: String, unique: true, uppercase: true, index: true },
+  referredBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+  referralPath: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }], // Array of up to 3 parent referrers
+  pointsHistory: [{
+    amount: Number,
+    reason: String, // 'exam_rank', 'referral_l1', 'referral_l2', 'referral_l3'
+    date: { type: Date, default: Date.now }
+  }],
   plan: { type: String, enum: ['free', 'basic', 'pro', 'premium', 'lifetime'], default: 'free' },
   subscription: {
     planType: { type: String, enum: ['attempts', 'time', 'unlimited', 'daily_limit'], default: 'attempts' },

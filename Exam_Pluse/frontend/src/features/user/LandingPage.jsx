@@ -8,7 +8,7 @@ import { API_BASE_URL as API } from '../../config';
 export default function LandingPage({ initialView = 'home' }) {
   const navigate = useNavigate();
   const { id } = useParams();
-  const { login } = useAuth();
+  const { user, login } = useAuth();
 
   // Views: 'home', 'pricing', 'payment', 'login', 'setup', 'admin'
   const [view, setView] = useState(initialView);
@@ -62,11 +62,12 @@ export default function LandingPage({ initialView = 'home' }) {
   const [showCode, setShowCode] = useState(false);
   const [setupName, setSetupName] = useState('');
   const [setupEmail, setSetupEmail] = useState('');
+  const [referrerCode, setReferrerCode] = useState('');
 
   // Admin State
   const [adminPass, setAdminPass] = useState('');
 
-  const [activeOffer, setActiveOffer] = useState({ title: 'Lifetime Access', priceOriginal: 399, priceOffer: 1, discount: '99.7%' });
+  const [activeOffers, setActiveOffers] = useState([]);
   const [selectedPlan, setSelectedPlan] = useState({ name: 'Pro Plan', price: 299 });
   const [reviews, setReviews] = useState([]);
     const [stats, setStats] = useState({ avgRating: 5.0, totalReviews: 0 });
@@ -75,7 +76,7 @@ export default function LandingPage({ initialView = 'home' }) {
   const [rateSuccess, setRateSuccess] = useState('');
 
   useEffect(() => {
-    axios.get(`${API}/auth/offer`).then(r => setActiveOffer(r.data)).catch(err => console.error(err));
+    axios.get(`${API}/auth/offers/active`).then(r => setActiveOffers(r.data)).catch(err => console.error(err));
     axios.get(`${API}/auth/reviews`).then(r => {
       setReviews(r.data.reviews || []);
       if (r.data.stats) setStats(r.data.stats);
@@ -95,7 +96,7 @@ export default function LandingPage({ initialView = 'home' }) {
         }
       }, 300); // Small delay for rendering
     }
-  }, [view]);
+  }, [view, activeOffers]);
 
   const changeView = (v) => {
     setView(v); setError(''); setSuccess('');
@@ -177,7 +178,7 @@ export default function LandingPage({ initialView = 'home' }) {
       const { data } = await axios.post(`${API}/auth/validate`, { code: code.trim() });
       if (data.token) {
         login(data.token, data.user);
-        navigate('/user/home');
+        changeView('home'); // Use assistant to clear error/success and stay on home (Pic 2)
       } else {
         changeView('setup');
       }
@@ -190,9 +191,9 @@ export default function LandingPage({ initialView = 'home' }) {
     if (!setupName.trim() || !setupEmail.trim()) return setError('All fields required');
     setLoading(true); setError('');
     try {
-      const { data } = await axios.post(`${API}/auth/setup`, { code, name: setupName, email: setupEmail });
+      const { data } = await axios.post(`${API}/auth/setup`, { code, name: setupName, email: setupEmail, referrerCode: referrerCode.trim() });
       login(data.token, data.user);
-      navigate('/user/home');
+      changeView('home'); // Use assistant to clear error/success and stay on home (Pic 2)
     } catch (err) {
       setError(err.response?.data?.error || 'Setup failed');
     } finally { setLoading(false); }
@@ -233,11 +234,46 @@ export default function LandingPage({ initialView = 'home' }) {
             <div style={{ fontSize: '12px', color: 'var(--muted)', letterSpacing: '1.5px', fontWeight: 600 }}>PREMIUM PORTAL</div>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: '48px', alignItems: 'center' }}>
-          {view !== 'correction' && ['home', 'pricing', 'login'].map(v => (
+        <div style={{ display: 'flex', gap: '32px', alignItems: 'center' }}>
+          {view !== 'correction' && ['home', 'pricing'].map(v => (
             <button key={v} onClick={() => setView(v)} style={{ background: 'transparent', border: 'none', color: view === v ? 'var(--accent)' : 'var(--muted)', fontSize: '15px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1.5px', padding: '6px 10px', cursor: 'pointer', transition: 'color 0.2s', fontFamily: 'var(--font-heading)' }} onMouseEnter={e => e.currentTarget.style.color='var(--accent)'} onMouseLeave={e => { if(view !== v) e.currentTarget.style.color='var(--muted)' }}>{v}</button>
           ))}
-          {view !== 'correction' && <button onClick={() => setView('payment')} style={{ background: 'linear-gradient(135deg, var(--accent), var(--accent2))', border: 'none', color: '#000', padding: '10px 24px', borderRadius: '10px', fontSize: '12px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px', boxShadow: '0 4px 15px var(--accent-glow)', cursor: 'pointer', transition: 'transform 0.2s' }} onMouseEnter={e => e.currentTarget.style.transform='translateY(-2px)'} onMouseLeave={e => e.currentTarget.style.transform='none'}>Get Access</button>}
+          {user ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+              <div 
+                onClick={() => navigate('/user/home')}
+                style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', background: 'rgba(0, 245, 212, 0.05)', padding: '6px 16px', borderRadius: '50px', border: '1px solid rgba(0, 245, 212, 0.2)', transition: 'all 0.3s', boxShadow: '0 0 20px rgba(0, 245, 212, 0.05)' }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(0, 245, 212, 0.1)'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(0, 245, 212, 0.05)'; e.currentTarget.style.transform = 'translateY(0)'; }}
+              >
+                <div style={{ position: 'relative' }}>
+                  <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'linear-gradient(135deg, var(--accent), var(--accent2))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 900, color: '#000' }}>
+                    {user.name?.[0] || 'U'}
+                  </div>
+                  <div style={{ position: 'absolute', bottom: '-2px', right: '-2px', width: '10px', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div style={{ width: '8px', height: '8px', background: '#10b981', borderRadius: '50%', border: '2px solid #03040b' }}></div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <span style={{ fontSize: '13px', color: '#fff', fontWeight: 800, lineHeight: 1.1 }}>{user.name}</span>
+                  <span style={{ fontSize: '9px', color: 'var(--accent)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Signed In ✓</span>
+                </div>
+              </div>
+              <button 
+                onClick={() => navigate('/user/home')} 
+                style={{ background: 'var(--accent)', border: 'none', color: '#000', padding: '10px 24px', borderRadius: '12px', fontSize: '13px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '1px', cursor: 'pointer', transition: 'all 0.3s', boxShadow: '0 4px 15px rgba(0, 245, 212, 0.2)' }} 
+                onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.05)'}
+                onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+              >
+                Go to Dashboard
+              </button>
+            </div>
+          ) : (
+            <>
+              <button onClick={() => setView('login')} style={{ background: 'transparent', border: 'none', color: view === 'login' ? 'var(--accent)' : 'var(--muted)', fontSize: '15px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1.5px', padding: '6px 10px', cursor: 'pointer', transition: 'color 0.2s', fontFamily: 'var(--font-heading)' }}>Login</button>
+              <button onClick={() => setView('payment')} style={{ background: 'linear-gradient(135deg, var(--accent), var(--accent2))', border: 'none', color: '#000', padding: '10px 24px', borderRadius: '10px', fontSize: '12px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px', boxShadow: '0 4px 15px var(--accent-glow)', cursor: 'pointer', transition: 'transform 0.2s' }} onMouseEnter={e => e.currentTarget.style.transform='translateY(-2px)'} onMouseLeave={e => e.currentTarget.style.transform='none'}>Get Access</button>
+            </>
+          )}
         </div>
       </nav>
 
@@ -257,8 +293,24 @@ export default function LandingPage({ initialView = 'home' }) {
               Gain complete familiarity with the official Exam Console Interface. 310+ Authentic PYQs spanning Aptitude, Reasoning, Verbal, and Technical domains. <span style={{ color: 'var(--accent2)', fontWeight: 700 }}>(TCS NQT, Digital & Ninja Prep included)</span>
             </p>
             <div style={{ display: 'flex', gap: '16px', justifyContent: 'center', flexWrap: 'wrap' }}>
-              <button className="stagger-item stagger-4" onClick={() => setView('login')} style={{ cursor: 'pointer', padding: '16px 36px', borderRadius: '12px', background: 'var(--accent)', color: '#000', border: 'none', fontWeight: 800, fontSize: '14px', letterSpacing: '1px', textTransform: 'uppercase', boxShadow: '0 8px 20px var(--accent-glow)' }}>🚀 Start Practice</button>
-              <button className="stagger-item stagger-5" onClick={() => setView('pricing')} style={{ cursor: 'pointer', padding: '16px 36px', borderRadius: '12px', background: 'transparent', color: '#fff', border: '1px solid rgba(255,255,255,0.1)', fontWeight: 700, fontSize: '14px', backdropFilter: 'blur(10px)', textTransform: 'uppercase', letterSpacing: '1px' }}>💎 View Offer (₹{activeOffer.priceOffer})</button>
+              {user ? (
+                <button 
+                  className="stagger-item stagger-4" 
+                  onClick={() => navigate('/user/home')} 
+                  style={{ cursor: 'pointer', padding: '16px 36px', borderRadius: '12px', background: 'var(--accent)', color: '#000', border: 'none', fontWeight: 800, fontSize: '14px', letterSpacing: '1px', textTransform: 'uppercase', boxShadow: '0 8px 20px var(--accent-glow)' }}
+                >
+                  🏠 Go to Dashboard
+                </button>
+              ) : (
+                <button 
+                  className="stagger-item stagger-4" 
+                  onClick={() => setView('login')} 
+                  style={{ cursor: 'pointer', padding: '16px 36px', borderRadius: '12px', background: 'var(--accent)', color: '#000', border: 'none', fontWeight: 800, fontSize: '14px', letterSpacing: '1px', textTransform: 'uppercase', boxShadow: '0 8px 20px var(--accent-glow)' }}
+                >
+                  🚀 Start Practice
+                </button>
+              )}
+              <button className="stagger-item stagger-5" onClick={() => setView('pricing')} style={{ cursor: 'pointer', padding: '16px 36px', borderRadius: '12px', background: 'transparent', color: '#fff', border: '1px solid rgba(255,255,255,0.1)', fontWeight: 700, fontSize: '14px', backdropFilter: 'blur(10px)', textTransform: 'uppercase', letterSpacing: '1px' }}>💎 View Offer (₹{activeOffers[0]?.priceOffer || 149})</button>
             </div>
           </div>
 
@@ -415,96 +467,39 @@ export default function LandingPage({ initialView = 'home' }) {
 
                 <div className="pricing-scroll-wrapper" ref={pricingScrollRef} style={{ display: 'flex', gap: '20px', overflowX: 'auto', padding: '10px 0 30px', scrollSnapType: 'x mandatory', WebkitOverflowScrolling: 'touch', msOverflowStyle: 'none', scrollbarWidth: 'none' }}>
                   
-                  {/* FREE TRIAL */}
-                  <div className="pricing-card">
-                     <div className="card-badge tier-badge">7-DAY TRIAL</div>
-                     <div className="price-block">
-                        <div className="plan-name">Free Trial</div>
-                        <div className="plan-price-row">
-                           <span className="plan-price">₹0</span>
-                           <span className="plan-duration">/ 7 days</span>
-                        </div>
-                     </div>
-                     <ul className="plan-features">
-                        <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--accent)' }}><polyline points="20 6 9 17 4 12"></polyline></svg> 5 Exams / day</li>
-                        <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--accent)' }}><polyline points="20 6 9 17 4 12"></polyline></svg> Basic Analytics</li>
-                        <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--accent)' }}><polyline points="20 6 9 17 4 12"></polyline></svg> Practice Mode</li>
-                     </ul>
-                     <button className="btn-select-plan" onClick={() => { setSelectedPlan({ name: 'Free Trial', price: 0 }); changeView('payment'); }}>Start Trial</button>
-                  </div>
-
-                  {/* BASIC PLAN */}
-                  <div className="pricing-card">
-                     <div className="card-badge basic-badge">STANDARD</div>
-                     <div className="price-block">
-                        <div className="plan-name">Basic Plan</div>
-                        <div className="plan-price-row">
-                           <span className="plan-price">₹99</span>
-                           <span className="plan-duration">/ month</span>
-                        </div>
-                     </div>
-                     <ul className="plan-features">
-                        <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#38bdf8' }}><polyline points="20 6 9 17 4 12"></polyline></svg> 20 Exams / day</li>
-                        <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#38bdf8' }}><polyline points="20 6 9 17 4 12"></polyline></svg> Standard Analytics</li>
-                        <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#38bdf8' }}><polyline points="20 6 9 17 4 12"></polyline></svg> 310 Authentic PYQs</li>
-                     </ul>
-                     <button className="btn-select-plan" onClick={() => { setSelectedPlan({ name: 'Basic Plan', price: 99 }); changeView('payment'); }}>Select Basic</button>
-                  </div>
-
-                  {/* PRO PLAN (STAR) */}
-                  <div className="pricing-card popular-card">
-                     <div className="best-value">MOST POPULAR</div>
-                     <div className="card-badge pro-badge">RECOMMENDED</div>
-                     <div className="price-block">
-                        <div className="plan-name" style={{ color: 'var(--accent)' }}>Pro Plan</div>
-                        <div className="plan-price-row">
-                           <span className="plan-price">₹299</span>
-                           <span className="plan-duration">/ month</span>
-                        </div>
-                     </div>
-                     <ul className="plan-features">
-                        <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--accent)' }}><polyline points="20 6 9 17 4 12"></polyline></svg> <strong>Unlimited Exams</strong></li>
-                        <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--accent)' }}><polyline points="20 6 9 17 4 12"></polyline></svg> Full Analytics</li>
-                        <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--accent)' }}><polyline points="20 6 9 17 4 12"></polyline></svg> Performance Tracking</li>
-                     </ul>
-                     <button className="btn-select-plan pro-btn" onClick={() => { setSelectedPlan({ name: 'Pro Plan', price: 299 }); changeView('payment'); }}>Go Pro Now</button>
-                  </div>
-
-                  {/* PREMIUM PLAN */}
-                  <div className="pricing-card">
-                     <div className="card-badge premium-badge">ADVANCED</div>
-                     <div className="price-block">
-                        <div className="plan-name" style={{ color: '#8b5cf6' }}>Premium</div>
-                        <div className="plan-price-row">
-                           <span className="plan-price">₹1999</span>
-                           <span className="plan-duration">/ year</span>
-                        </div>
-                     </div>
-                     <ul className="plan-features">
-                        <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#8b5cf6' }}><polyline points="20 6 9 17 4 12"></polyline></svg> Unlimited Access</li>
-                        <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#8b5cf6' }}><polyline points="20 6 9 17 4 12"></polyline></svg> Advanced Reports</li>
-                        <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#8b5cf6' }}><polyline points="20 6 9 17 4 12"></polyline></svg> Priority Support</li>
-                     </ul>
-                     <button className="btn-select-plan" onClick={() => { setSelectedPlan({ name: 'Premium Plan', price: 1999 }); changeView('payment'); }}>Choose Premium</button>
-                  </div>
-
-                  {/* LIFETIME PLAN */}
-                  <div className="pricing-card">
-                     <div className="card-badge lifetime-badge">EXCLUSIVE</div>
-                     <div className="price-block">
-                        <div className="plan-name" style={{ color: '#f59e0b' }}>Lifetime</div>
-                        <div className="plan-price-row">
-                           <span className="plan-price">₹2999</span>
-                           <span className="plan-duration">/ forever</span>
-                        </div>
-                     </div>
-                     <ul className="plan-features">
-                        <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#f59e0b' }}><polyline points="20 6 9 17 4 12"></polyline></svg> Unlimited Forever</li>
-                        <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#f59e0b' }}><polyline points="20 6 9 17 4 12"></polyline></svg> All Future Updates</li>
-                        <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#f59e0b' }}><polyline points="20 6 9 17 4 12"></polyline></svg> VIP Badge</li>
-                     </ul>
-                     <button className="btn-select-plan" onClick={() => { setSelectedPlan({ name: 'Lifetime Plan', price: 2999 }); changeView('payment'); }}>Get Lifetime</button>
-                  </div>
+                  {activeOffers.map((offer, idx) => {
+                    const isPro = offer.tierLevel === 'PRO' || offer.tierLevel === 'PREMIUM';
+                    return (
+                      <div key={offer._id || idx} className={`pricing-card ${isPro ? 'popular-card' : ''}`}>
+                         {isPro && <div className="best-value">MOST POPULAR</div>}
+                         <div className={`card-badge ${offer.tierLevel?.toLowerCase()}-badge`}>{offer.discount || 'Special Offer'}</div>
+                         <div className="price-block">
+                            <div className="plan-name" style={{ color: isPro ? 'var(--accent)' : '#fff' }}>{offer.title}</div>
+                            <div className="plan-price-row">
+                               <span className="plan-price">₹{offer.priceOffer}</span>
+                               <span className="plan-duration">/ {offer.durationDays || 30} days</span>
+                            </div>
+                            <div style={{ fontSize: '12px', color: 'var(--muted)', textDecoration: 'line-through' }}>₹{offer.priceOriginal}</div>
+                         </div>
+                         <ul className="plan-features">
+                            {offer.features?.map((f, i) => (
+                              <li key={i}>
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ color: isPro ? 'var(--accent)' : 'var(--muted)' }}>
+                                  <polyline points="20 6 9 17 4 12"></polyline>
+                                </svg> 
+                                {f}
+                              </li>
+                            ))}
+                         </ul>
+                         <button 
+                           className={`btn-select-plan ${isPro ? 'pro-btn' : ''}`} 
+                           onClick={() => { setSelectedPlan({ name: offer.title, price: offer.priceOffer }); changeView('payment'); }}
+                         >
+                           Select {offer.tierLevel}
+                         </button>
+                      </div>
+                    );
+                  })}
 
                 </div>
               </div>
@@ -657,6 +652,8 @@ export default function LandingPage({ initialView = 'home' }) {
             <div className="utr-section" style={{ background: 'transparent', padding: 0, border: 'none', boxShadow: 'none' }}>
               <input className="name-input" placeholder="Full Name" value={setupName} onChange={e => setSetupName(e.target.value)} />
               <input className="name-input" placeholder="Email Address" value={setupEmail} onChange={e => setSetupEmail(e.target.value)} />
+              <input className="name-input" style={{ border: '1px dashed var(--accent)', color: 'var(--accent)' }} placeholder="Referrer Code (Optional)" value={referrerCode} onChange={e => setReferrerCode(e.target.value)} />
+              <div style={{ fontSize: '10px', color: 'var(--muted)', marginTop: '4px', textAlign: 'center' }}>Earn 50 pts joining bonus if you use a referral code! ✨</div>
               {error && <div style={{ color: 'var(--danger)', fontSize: '12px', marginTop: '10px' }}>⚠ {error}</div>}
             </div>
 

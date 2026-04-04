@@ -5,6 +5,10 @@ const couponSchema = new mongoose.Schema({
   type: { type: String, enum: ['percentage', 'fixed'], default: 'percentage' },
   value: { type: Number, required: true },
   expiryDate: { type: Date },
+  
+  // Interlinking logic
+  applicableTierLevels: [{ type: String, enum: ['BASIC', 'PRO', 'PREMIUM', 'LIFETIME'] }], 
+  
   usageLimit: { type: Number, default: 100 },
   usedCount: { type: Number, default: 0 },
   minAmount: { type: Number, default: 0 },

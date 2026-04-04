@@ -125,10 +125,10 @@ router.get('/', async (req, res) => {
           const usedIds = new Set(); 
           const mongoose = require('mongoose');
 
-          // Pre-scan all manual selections across all sections/topics first
+          // 1. IMPROVED PRE-SCAN (Blacklist all manual pinned questions globally)
           (config.sections || []).forEach(sec => {
             (sec.topics || []).forEach(t => {
-              if (typeof t === 'object' && t !== null && (t.mode === 'manual' || t.mode === 'specific')) {
+              if (t && typeof t === 'object') {
                 const selected = t.selectedQuestions || t.questionIds || [];
                 selected.forEach(id => {
                   if (mongoose.Types.ObjectId.isValid(id)) usedIds.add(id.toString());
@@ -137,56 +137,58 @@ router.get('/', async (req, res) => {
             });
           });
 
+          // 2. UNIFIED HYBRID GENERATION ENGINE
           for (const section of config.sections) {
             let sectionQuestions = [];
             for (const t of (section.topics || [])) {
-              const isObj = typeof t === 'object' && t !== null && t.name;
+              if (!t) continue;
+              
+              const isObj = typeof t === 'object' && t.name;
               const topicName = isObj ? t.name : t;
-              const count = isObj ? (t.count || 5) : Math.max(1, Math.floor((section.count || 25) / section.topics.length));
-              const mode = isObj ? (t.mode || 'auto') : 'auto';
-              const selected = isObj ? (t.selectedQuestions || t.questionIds || []) : [];
+              const mode = (isObj ? (t.mode || 'AUTO') : 'AUTO').toUpperCase();
+              const targetCount = isObj ? (t.count || 5) : 5;
+              const manualIds = isObj ? (t.selectedQuestions || t.questionIds || []) : [];
 
               let sampled = [];
-              if (mode === 'manual' || mode === 'specific') {
-                const mongoose = require('mongoose');
-                const validIds = (selected || []).filter(id => mongoose.Types.ObjectId.isValid(id));
-                if (validIds.length > 0) {
-                  sampled = await Question.find({ _id: { $in: validIds } }).lean();
-                }
 
-                // Hybrid Logic: Pick extra questions if requested count > manual selection
-                const targetCount = Number(count) || 0;
-                if (targetCount > sampled.length) {
-                  const extraCount = targetCount - sampled.length;
-                  const dbConf = await Config.findOne({ key: 'disabledTopics' });
-                  const disabled = dbConf?.value || [];
-                  const topicsList = (await getExpandedTopics(topicName)).filter(t => !disabled.includes(t));
-                  
-                  // Ensure we don't pick already picked ones
+              // Phase A: Load Manual Pins (Applies to BOTH modes)
+              const validIds = (manualIds || []).filter(id => mongoose.Types.ObjectId.isValid(id));
+              if (validIds.length > 0) {
+                sampled = await Question.find({ _id: { $in: validIds } }).lean();
+              }
+
+              // Phase B: Hybrid Fill (AUTO only)
+              // If we have manual pins, the targetCount (Total) = manualCount + AutoPortion.
+              // Logic: Fill the 'AutoPortion' if mode is AUTO.
+              if (mode === 'AUTO') {
+                const currentManualCount = sampled.length;
+                // Note: user logic is 'AutoPortion + ManualCount = count'.
+                // So the 'targetCount' in the DB is already the total sum.
+                // We just need to fulfill that total.
+                const needed = Math.max(0, targetCount - currentManualCount);
+                
+                if (needed > 0) {
+                  // Re-ensure current sampled ones are in usedIds to prevent collisions
                   sampled.forEach(q => usedIds.add(q._id.toString()));
 
-                  const extraQs = await Question.aggregate([
-                    { $match: { _id: { $nin: Array.from(usedIds) }, s: { $in: topicsList } } },
-                    { $sample: { size: extraCount } }
-                  ]);
-                  sampled = [...sampled, ...extraQs];
-                }
-              } else {
-                const dbConf = await Config.findOne({ key: 'disabledTopics' });
-                const disabled = dbConf?.value || [];
-                const topicsList = (await getExpandedTopics(topicName)).filter(t => !disabled.includes(t));
-                
-                const sampleSize = Math.floor(Number(count)) || 5;
-                if (topicsList.length === 0) {
-                  sampled = []; 
-                } else {
-                  sampled = await Question.aggregate([
-                    { $match: { _id: { $nin: Array.from(usedIds) }, s: { $in: topicsList } } },
-                    { $sample: { size: sampleSize } }
-                  ]);
+                  const dbConf = await (mongoose.models.Config || mongoose.model('Config')).findOne({ key: 'disabledTopics' });
+                  const disabled = dbConf?.value || [];
+                  const topicsList = (await getExpandedTopics(topicName)).filter(tn => !disabled.includes(tn));
+
+                  if (topicsList.length > 0) {
+                    const extraQs = await Question.aggregate([
+                      { $match: { 
+                        _id: { $nin: Array.from(usedIds).map(id => new mongoose.Types.ObjectId(id)) }, 
+                        s: { $in: topicsList } 
+                      } },
+                      { $sample: { size: needed } }
+                    ]);
+                    sampled = [...sampled, ...extraQs];
+                  }
                 }
               }
 
+              // Phase C: Register to global blacklist and commit to result
               sampled.forEach(q => {
                 usedIds.add(q._id.toString());
                 sectionQuestions.push({

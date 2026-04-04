@@ -183,22 +183,6 @@ export default function ExamPage() {
     }
   };
 
-  const handleResetAll = async () => {
-    if (window.confirm("Are you sure you want to reset all practice points and answers?")) {
-      try {
-        const { data } = await axios.post(`${API}/exam/reset-practice`, {}, { headers: { Authorization: `Bearer ${token}` } });
-        if (data.success) {
-          setAnswers({});
-          setQuestionsStats({});
-          setLocalPoints(0);
-          alert(data.message || "Practice session reset successfully 🔄");
-        }
-      } catch (err) {
-        console.error("Reset failed:", err);
-      }
-    }
-  };
-
   const handleSubmit = async (force = false) => {
     if (mode !== 'final' && !force) {
       setShowConfirmModal(true);
@@ -543,13 +527,6 @@ export default function ExamPage() {
                 <button onClick={() => { setFontSize(p => Math.min(p + 2, 28)); setOptionFontSize(o => Math.min(o + 2, 24)); }} style={{ background: 'transparent', border: 'none', color: '#fff', fontSize: '18px', cursor: 'pointer', padding: '0 6px', fontWeight: 800, transition: 'all 0.2s' }} onMouseEnter={e => e.currentTarget.style.color = 'var(--accent)'} onMouseLeave={e => e.currentTarget.style.color = '#fff'}>+</button>
                 <span style={{ fontSize: '11px', color: 'var(--muted)', fontFamily: 'var(--font-mono)', borderLeft: '1px solid rgba(255,255,255,0.1)', borderRight: '1px solid rgba(255,255,255,0.1)', padding: '0 8px' }}>Style</span>
                 <button onClick={() => { setFontSize(p => Math.max(p - 2, 14)); setOptionFontSize(o => Math.max(o - 2, 12)); }} style={{ background: 'transparent', border: 'none', color: '#fff', fontSize: '18px', cursor: 'pointer', padding: '0 6px', fontWeight: 800, transition: 'all 0.2s' }} onMouseEnter={e => e.currentTarget.style.color = 'var(--accent)'} onMouseLeave={e => e.currentTarget.style.color = '#fff'}>-</button>
-                
-                {/* Reset Button */}
-                {mode !== 'final' && (
-                  <button onClick={handleResetAll} style={{ background: 'rgba(239, 68, 68, 0.1)', border: 'none', color: 'var(--danger)', fontSize: '11px', fontWeight: 700, cursor: 'pointer', padding: '4px 8px', borderRadius: '12px', borderLeft: '1px solid rgba(255,255,255,0.1)', marginLeft: '4px', transition: 'all 0.2s' }} onMouseEnter={e => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.3)'} onMouseLeave={e => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'}>
-                    Reset
-                  </button>
-                )}
               </div>
 
               {(() => {

@@ -8,6 +8,7 @@ const questionSchema = new mongoose.Schema({
   q: { type: String, required: true },
   o: [{ type: String, required: true }],
   a: { type: String, required: true },
+  explanation: { type: String },
   stats: { type: [Number], default: [0, 0, 0, 0] }
 });
 

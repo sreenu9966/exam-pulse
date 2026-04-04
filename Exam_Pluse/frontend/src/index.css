@@ -1241,12 +1241,13 @@ body::after {
 }
 
 .glass-select {
-  background: rgba(13, 17, 23, 0.6) !important;
+  background: rgba(13, 17, 23, 0.6) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='rgba(0, 245, 212, 0.5)' stroke-width='3'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E") no-repeat right 16px center !important;
+  background-size: 16px !important;
   backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.1) !important;
   border-radius: 12px !important;
   color: #fff !important;
-  padding: 10px 16px !important;
+  padding: 10px 40px 10px 16px !important;
   font-size: 13px !important;
   font-weight: 700 !important;
   appearance: none;
@@ -1265,3 +1266,141 @@ body::after {
   color: #fff;
   padding: 12px;
 }
+
+
+/* 🏆 ELITE SCHOLAR CERTIFICATE EXPORT STYLES (PDF-READY) */
+.print-only {
+  display: none !important;
+}
+
+@media print {
+  /* Hide everything except the certificate */
+  body * {
+    visibility: hidden !important;
+  }
+  .print-only, .print-only * {
+    visibility: visible !important;
+  }
+  .print-only {
+    display: block !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 40px !important;
+    background: #fff !important;
+    color: #1e293b !important;
+    height: auto !important;
+  }
+  
+  /* Ensure backgrounds and colors print */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  
+  @page {
+    size: landscape;
+    margin: 0mm;
+  }
+}
+
+.certificate-card {
+  width: 800px;
+  height: 540px;
+  background: #fff;
+  border: 12px solid #f8fafc;
+  border-radius: 48px;
+  position: relative;
+  padding: 60px;
+  margin: 0 auto;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.05);
+  font-family: 'Inter', sans-serif;
+  overflow: hidden;
+}
+
+.certificate-content {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+}
+
+.certificate-badge {
+  padding: 12px 32px;
+  border-radius: 20px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-size: 14px;
+  margin-bottom: 40px;
+}
+
+.badge-gold { background: #fef9c3; color: #a16207; border: 1px solid #fde047; }
+.badge-silver { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
+.badge-bronze { background: #ffedd5; color: #9a3412; border: 1px solid #fed7aa; }
+
+.cert-eyebrow {
+  font-size: 14px;
+  font-weight: 800;
+  color: #3b82f6;
+  text-transform: uppercase;
+  letter-spacing: 6px;
+  margin-bottom: 16px;
+}
+
+.cert-name {
+  font-size: 64px;
+  font-weight: 900;
+  color: #1e293b;
+  margin-bottom: 16px;
+  letter-spacing: -2.5px;
+}
+
+.cert-rank {
+  font-size: 20px;
+  font-weight: 700;
+  color: #64748b;
+  margin-bottom: 48px;
+}
+
+.cert-stats {
+  display: flex;
+  gap: 64px;
+  border-top: 2px solid #f1f5f9;
+  padding-top: 40px;
+}
+
+.stat-box {
+  text-align: center;
+}
+
+.stat-box .label {
+  font-size: 11px;
+  font-weight: 800;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  margin-bottom: 6px;
+}
+
+.stat-box .value {
+  font-size: 28px;
+  font-weight: 900;
+  color: #1e293b;
+}
+
+.cert-footer {
+  position: absolute;
+  bottom: 40px;
+  display: flex;
+  justify-content: space-between;
+  width: calc(100% - 120px);
+  font-size: 12px;
+  font-weight: 600;
+  color: #94a3b8;
+}
+

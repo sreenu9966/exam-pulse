@@ -1,5 +1,7 @@
 const router = require('express').Router();
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
+const { nanoid } = require('nanoid');
 const User = require('../models/User');
 const Submission = require('../models/Submission');
 const Config = require('../models/Config');
@@ -19,7 +21,19 @@ router.post('/validate', async (req, res) => {
     if (!user) return res.status(401).json({ error: 'Invalid or inactive access code' });
 
     const token = jwt.sign({ code: user.code, userId: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
-    res.json({ token, user: { code: user.code, name: user.name, email: user.email, attempts: user.attempts || [] }, isNew: false });
+    res.json({ 
+      token, 
+      user: { 
+        code: user.code, 
+        name: user.name, 
+        email: user.email, 
+        totalPoints: user.totalPoints || 0,
+        referralCode: user.referralCode,
+        currentStreak: user.currentStreak || 0,
+        attempts: user.attempts || [] 
+      }, 
+      isNew: false 
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -47,10 +61,43 @@ router.post('/setup', async (req, res) => {
     } else {
       user.name = name; user.email = email;
     }
+
+    // 🔗 REFERRAL LOGIC (Refined & Random)
+    if (!user.referralCode) {
+      user.referralCode = nanoid(7).toUpperCase(); // Short, unique, separate random code
+    }
+
+    const { referrerCode } = req.body;
+    if (referrerCode && !user.referredBy) {
+      const referrer = await User.findOne({ referralCode: referrerCode.trim().toUpperCase() });
+      if (referrer && referrer._id.toString() !== user._id.toString()) {
+        user.referredBy = referrer._id;
+        // Build chain: [Parent, Grandparent, Great-Grandparent]
+        user.referralPath = [referrer._id, ...(referrer.referralPath || [])].slice(0, 3);
+        
+        // 🌟 JOINING BONUS (NEW): Award 50 points to the NEW student for using a referral
+        user.totalPoints = (user.totalPoints || 0) + 50;
+        user.pointsHistory.push({ amount: 50, reason: `Joining Bonus (Referral: ${referrer.name})` });
+        
+        console.log(`🔗 Referral linkage complete: ${user.name} referred by ${referrer.name}`);
+      }
+    }
+
     await user.save();
 
     const token = jwt.sign({ code: user.code, userId: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
-    res.json({ token, user: { code: user.code, name: user.name, email: user.email, attempts: [] } });
+    res.json({ 
+      token, 
+      user: { 
+        code: user.code, 
+        name: user.name, 
+        email: user.email, 
+        totalPoints: user.totalPoints || 0,
+        referralCode: user.referralCode,
+        currentStreak: user.currentStreak || 0,
+        attempts: [] 
+      } 
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -106,20 +153,58 @@ router.get('/payment/status/:utr', async (req, res) => {
 
 const Offer = require('../models/Offer');
 
-// GET /api/auth/offer — Fetch active offer with Config Fallback
-router.get('/offer', async (req, res) => {
+// GET /api/auth/offers/active — Fetch all active promotional offers for Landing Page
+router.get('/offers/active', async (req, res) => {
   try {
+    // Only return active offers that haven't reached their redemption limit
+    const allOffers = await Offer.find({ active: true }).sort({ priceOffer: 1 });
+    
+    // Filter out offers that have reached their maxRedemptions
+    const validOffers = allOffers.filter(o => {
+      if (o.maxRedemptions && o.usedCount >= o.maxRedemptions) return false;
+      return true;
+    });
+
+    if (validOffers.length > 0) {
+      return res.json(validOffers);
+    }
+
+    // Fallback if no dynamic offers are active
     const configs = await Config.find({ key: { $in: ['offer_price_original', 'offer_price_deal', 'offer_discount_text'] } });
     const configMap = {};
     configs.forEach(c => { configMap[c.key] = c.value; });
 
-    const offer = {
+    const fallbackOffer = [{
+      _id: 'default_premium',
+      title: "Premium Full Access",
+      tierLevel: "PRO",
+      priceOriginal: configMap.offer_price_original || 399,
+      priceOffer: configMap.offer_price_deal || 149,
+      discount: configMap.offer_discount_text || "60% OFF",
+      features: ["Unlimited Exams", "Detailed Performance Matrix", "Priority Support", "Lifetime Updates"],
+      durationDays: 365,
+      targetSegment: "all"
+    }];
+    
+    res.json(fallbackOffer);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET /api/auth/offer — Legacy shim for older components
+router.get('/offer', async (req, res) => {
+  try {
+    const offer = await Offer.findOne({ active: true }).sort({ createdAt: -1 });
+    if (offer) return res.json(offer);
+    
+    const configs = await Config.find({ key: { $in: ['offer_price_original', 'offer_price_deal', 'offer_discount_text'] } });
+    const configMap = {};
+    configs.forEach(c => { configMap[c.key] = c.value; });
+    res.json({
       title: "Premium Full Access",
       priceOriginal: configMap.offer_price_original || 399,
       priceOffer: configMap.offer_price_deal || 1,
       discount: configMap.offer_discount_text || "99.7%"
-    };
-    res.json(offer);
+    });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

@@ -19,16 +19,17 @@ import {
  */
 export const AccuracyMatrix = ({ data }) => {
   const chartData = [
-    { name: 'Aptitude', value: data?.aptitude || 69, fill: '#00f5d4' },
-    { name: 'Reasoning', value: data?.reasoning || 45, fill: '#f59e0b' },
-    { name: 'Verbal Skill', value: data?.verbal || 70, fill: '#38bdf8' },
+    { name: 'Aptitude', value: data?.aptitude || 0, fill: '#00f5d4' },
+    { name: 'Reasoning', value: data?.reasoning || 0, fill: '#ec4899' },
+    { name: 'Verbal', value: data?.verbal || 0, fill: '#8b5cf6' },
+    { name: 'Technical', value: data?.technical || 0, fill: '#38bdf8' },
   ];
 
   return (
-    <div className="dash-card" style={{ height: '300px', position: 'relative' }}>
-      <h3 className="dash-card-title">Overall Accuracy Matrix</h3>
-      <div className="radial-matrix-container">
-        <ResponsiveContainer width="100%" height="100%">
+    <div className="glass-card" style={{ height: '280px', padding: '24px', borderRadius: '28px', position: 'relative' }}>
+      <h3 className="dash-card-title" style={{ fontSize: '11px', fontWeight: 900, color: 'rgba(255,255,255,0.3)', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '16px' }}>Accuracy Matrix</h3>
+      <div className="radial-matrix-container" style={{ height: '200px' }}>
+        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
           <RadialBarChart
             cx="50%"
             cy="50%"
@@ -72,35 +73,32 @@ export const SubjectRadar = ({ data }) => {
     { subject: 'Reasoning', A: 70, fullMark: 100 },
     { subject: 'Verbal', A: 60, fullMark: 100 },
     { subject: 'Technical', A: 90, fullMark: 100 },
-    { subject: 'Logic', A: 50, fullMark: 100 },
-    { subject: 'Cognitive', A: 85, fullMark: 100 },
   ];
 
   return (
-    <div className="dash-card" style={{ height: '320px' }}>
-      <h3 className="dash-card-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-         <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#00f5d4' }}></span>
-         Subject Mastery Matrix
-      </h3>
-      <ResponsiveContainer width="100%" height="80%">
-        <RadarChart cx="50%" cy="50%" outerRadius="75%" data={radarData}>
-          <PolarGrid stroke="rgba(255,255,255,0.05)" strokeDasharray="3 3" />
-          <PolarAngleAxis dataKey="subject" stroke="rgba(255,255,255,0.4)" fontSize={9} fontWeight={700} />
-          <Radar
-            name="Performance"
-            dataKey="A"
-            stroke="#00f5d4"
-            fill="url(#radarGradient)"
-            fillOpacity={0.5}
-          />
-          <defs>
-            <linearGradient id="radarGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#00f5d4" stopOpacity={0.8}/>
-              <stop offset="95%" stopColor="#00bbf9" stopOpacity={0.2}/>
-            </linearGradient>
-          </defs>
-        </RadarChart>
-      </ResponsiveContainer>
+    <div className="dash-card reveal-item" style={{ minHeight: '260px', padding: '24px', animationDelay: '0.2s', borderRadius: '28px' }}>
+      <h3 className="dash-card-title" style={{ fontSize: '11px', letterSpacing: '1px', color: 'rgba(255,255,255,0.3)', marginBottom: '24px' }}>SUBJECT MASTERY</h3>
+      <div style={{ height: '200px' }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <RadarChart cx="50%" cy="50%" outerRadius="65%" data={radarData}>
+            <PolarGrid stroke="rgba(255,255,255,0.05)" strokeDasharray="3 3" />
+            <PolarAngleAxis dataKey="subject" stroke="rgba(255,255,255,0.4)" fontSize={9} fontWeight={700} />
+            <Radar
+              name="Performance"
+              dataKey="A"
+              stroke="#00f5d4"
+              fill="url(#radarGradient)"
+              fillOpacity={0.5}
+            />
+            <defs>
+              <linearGradient id="radarGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#00f5d4" stopOpacity={0.8}/>
+                <stop offset="95%" stopColor="#00bbf9" stopOpacity={0.2}/>
+              </linearGradient>
+            </defs>
+          </RadarChart>
+        </ResponsiveContainer>
+      </div>
     </div>
   );
 };
@@ -109,18 +107,18 @@ export const SubjectRadar = ({ data }) => {
  * 🚀 Metric Circle (Big Performance Rings)
  */
 export const MetricCircle = ({ label, subLabel, value, color, brand = "CORE_ENGINE" }) => {
-  const data = [
+  const pieData = [
     { name: 'Completed', value: value },
     { name: 'Remaining', value: 100 - value },
   ];
 
   return (
-    <div className="metric-circle-wrap" style={{ display: 'flex', alignItems: 'center', gap: '24px', padding: '12px' }}>
-      <div className="big-circle-container" style={{ width: '80px', height: '80px', position: 'relative' }}>
+    <div className="metric-circle-wrap" style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '8px' }}>
+      <div style={{ width: '80px', height: '80px', position: 'relative' }}>
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie
-              data={data}
+              data={pieData}
               cx="50%"
               cy="50%"
               innerRadius={30}
@@ -130,6 +128,8 @@ export const MetricCircle = ({ label, subLabel, value, color, brand = "CORE_ENGI
               paddingAngle={0}
               dataKey="value"
               stroke="none"
+              animationBegin={0}
+              animationDuration={1500}
             >
               <Cell fill={color} cornerRadius={8} />
               <Cell fill="rgba(255,255,255,0.03)" />
@@ -138,7 +138,7 @@ export const MetricCircle = ({ label, subLabel, value, color, brand = "CORE_ENGI
         </ResponsiveContainer>
         <div className="circle-inner-label" style={{ 
           position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
-          fontSize: '14px', fontWeight: 900, color: '#fff', fontFamily: 'monospace' 
+          fontSize: '11px', fontWeight: 900, color: '#fff', fontFamily: 'monospace' 
         }}>
           {value}%
         </div>
@@ -164,8 +164,8 @@ export const StrategicRoadmap = ({ items }) => {
   ];
 
   return (
-    <div className="dash-card">
-      <h3 className="dash-card-title">System Roadmap Calibration</h3>
+    <div className="glass-card" style={{ padding: '32px', borderRadius: '28px' }}>
+      <h3 className="dash-card-title" style={{ fontSize: '12px', fontWeight: 900, color: 'rgba(255,255,255,0.3)', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '24px' }}>Strategic Roadmap</h3>
       <div className="roadmap-list" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
         {roadmapItems.map((item, idx) => (
           <div key={idx} className="roadmap-card" style={{ 
@@ -206,13 +206,10 @@ export const StrategicRoadmap = ({ items }) => {
  * ⚡ Stat Mini Block
  */
 export const StatMiniCard = ({ label, value, sub }) => (
-  <div className="stat-mini-card" style={{ 
+  <div className="glass-card" style={{ 
     display: 'flex', flexDirection: 'column', 
-    background: 'rgba(255,255,255,0.02)', 
-    border: '1px solid rgba(255,255,255,0.05)', 
-    padding: '20px', 
-    borderRadius: '20px',
-    transition: 'all 0.3s'
+    padding: '24px 32px', 
+    borderRadius: '24px',
   }}>
     <div className="stat-mini-label" style={{ fontSize: '10px', color: 'var(--muted)', fontWeight: 800, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '4px' }}>{label}</div>
     <div className="stat-mini-val" style={{ fontSize: '28px', fontWeight: 900, color: '#fff', letterSpacing: '-1px', margin: '4px 0' }}>{value}</div>

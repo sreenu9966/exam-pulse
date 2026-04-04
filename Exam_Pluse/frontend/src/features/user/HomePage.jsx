@@ -25,6 +25,7 @@ const Skeleton = ({ width, height, style }) => (
 
 // 🚀 MEMOIZED PORTALS FOR MAXIMUM PERFORMANCE
 const DashboardPortal = React.memo(({ activeSide, loading, categoryStats, advancedChartData, highestScore, averageScore, trendData, submissions, overallAccuracy, chartPeriod, setChartPeriod, setActiveSide, user, disabledTopics = [], setActiveTopic }) => {
+  const [copied, setCopied] = React.useState(false);
   if (activeSide !== 'dashboard') return null;
   return (
     <div style={{ animation: 'fadeIn 0.5s', background: '#0b1221', padding: '24px', borderRadius: '16px', border: '1px solid #1e293b', color: '#f8fafc', display: 'flex', flexDirection: 'column', gap: '24px', position: 'relative', overflow: 'hidden', marginBottom: '32px' }}>
@@ -33,6 +34,65 @@ const DashboardPortal = React.memo(({ activeSide, loading, categoryStats, advanc
 
       <div style={{ position: 'relative', zIndex: 1, display: 'grid', gridTemplateColumns: 'minmax(250px, 1.2fr) minmax(400px, 2fr) minmax(250px, 1fr)', gap: '20px' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {/* 🌟 NEW: REWARDS & REFERRAL CENTER */}
+          <div style={{ 
+            background: 'linear-gradient(135deg, rgba(253, 185, 49, 0.15), rgba(0, 0, 0, 0.4))', 
+            border: '1px solid rgba(253, 185, 49, 0.3)', 
+            borderRadius: '16px', padding: '24px', backdropFilter: 'blur(10px)',
+            position: 'relative', overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,0.3)'
+          }}>
+            <div style={{ position: 'absolute', top: '-20px', right: '-20px', fontSize: '80px', opacity: 0.1, transform: 'rotate(15deg)' }}>🏆</div>
+            <h3 style={{ fontSize: '16px', color: '#fff', fontWeight: 800, margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+               🌟 REWARDS CENTER
+            </h3>
+            
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                <div>
+                   <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.6)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px' }}>Total Points</div>
+                   <div style={{ fontSize: '36px', fontWeight: 900, color: '#fdb931', textShadow: '0 0 20px rgba(253, 185, 49, 0.4)' }}>{user?.totalPoints || 0} <span style={{ fontSize: '14px', fontWeight: 600 }}>PTS</span></div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                   <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.6)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px' }}>Daily Rank</div>
+                   <div style={{ fontSize: '24px', fontWeight: 800, color: '#fff' }}>#{user?.rank || '--'}</div>
+                </div>
+            </div>
+
+            <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '12px', padding: '16px', border: '1px solid rgba(255,255,255,0.05)' }}>
+               <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', fontWeight: 700, marginBottom: '8px', textTransform: 'uppercase' }}>Your Referral Code</div>
+               <div style={{ display: 'flex', gap: '8px' }}>
+                  <div style={{ flex: 1, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', padding: '10px', fontFamily: 'var(--font-mono)', fontSize: '15px', color: 'var(--accent)', fontWeight: 800, textAlign: 'center', letterSpacing: '1px' }}>
+                     {user?.referralCode || 'N/A'}
+                  </div>
+                  <button 
+                    onClick={() => { 
+                      navigator.clipboard.writeText(user?.referralCode); 
+                      setCopied(true);
+                      setTimeout(() => setCopied(false), 2000);
+                    }}
+                    style={{ 
+                      background: copied ? '#10b981' : 'var(--accent)', 
+                      border: 'none', 
+                      borderRadius: '12px', 
+                      width: '44px',
+                      cursor: 'pointer', 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'center',
+                      fontSize: '10px',
+                      fontWeight: 800,
+                      color: copied ? '#fff' : '#000',
+                      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+                    }}
+                  >
+                    {copied ? '✅' : '📋'}
+                  </button>
+               </div>
+               <p style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', marginTop: '10px', textAlign: 'center', fontStyle: 'italic' }}>
+                  Invite friends and earn up to <strong>175 PTS</strong> per user! (3 Levels)
+               </p>
+            </div>
+          </div>
+
           <div style={{ background: 'rgba(30, 41, 59, 0.5)', border: '1px solid #334155', borderRadius: '12px', padding: '16px', backdropFilter: 'blur(10px)' }}>
             <h3 style={{ fontSize: '14px', color: '#cbd5e1', fontWeight: 600, margin: '0 0 16px 0', letterSpacing: '0.5px' }}>Overall Accuracy Matrix</h3>
             <div style={{ display: 'flex', alignItems: 'center', height: '180px' }}>
@@ -394,7 +454,7 @@ const RewardsPortal = React.memo(({ activeSide, token, showToast, refreshUser })
   );
 });
 
-const UpgradePortal = React.memo(({ activeSide, token, showToast, refreshUser, user }) => {
+const UpgradePortal = React.memo(({ activeSide, token, showToast, refreshUser, user, offers = [] }) => {
   if (activeSide !== 'upgrade') return null;
   const [code, setCode] = useState('');
   const [applying, setApplying] = useState(false);
@@ -412,39 +472,51 @@ const UpgradePortal = React.memo(({ activeSide, token, showToast, refreshUser, u
   };
 
   return (
-    <div style={{ animation: 'fadeIn 0.5s', padding: '24px', maxWidth: '1000px', margin: '0 auto' }}>
+    <div style={{ animation: 'fadeIn 0.5s', padding: '24px', maxWidth: '1100px', margin: '0 auto' }}>
       <div style={{ textAlign: 'center', marginBottom: '48px' }}>
         <h2 style={{ color: '#fff', fontSize: '36px', fontWeight: 800, marginBottom: '12px' }}>👑 Unlock Premium Potential</h2>
-        <p style={{ color: 'var(--muted)', fontSize: '18px' }}>Get unlimited access to all exams, detailed analytics, and priority support.</p>
+        <p style={{ color: 'var(--muted)', fontSize: '18px' }}>Choose the plan that fits your preparation journey.</p>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px', marginBottom: '48px' }}>
-        <div className="cyber-card" style={{ background: 'rgba(30, 41, 59, 0.4)', border: '1px solid var(--border)', borderRadius: '24px', padding: '40px', opacity: user?.plan === 'premium' ? 0.6 : 1 }}>
-          <h3 style={{ color: '#fff', fontSize: '24px', fontWeight: 800, marginBottom: '8px' }}>Free Plan</h3>
-          <div style={{ fontSize: '32px', fontWeight: 900, marginBottom: '24px', color: 'var(--muted)' }}>$0 <span style={{ fontSize: '14px', fontWeight: 400 }}>/ month</span></div>
-          <ul style={{ color: 'var(--muted)', fontSize: '14px', display: 'flex', flexDirection: 'column', gap: '12px', padding: 0, listStyle: 'none' }}>
-            <li>✅ Limited Practice Access</li>
-            <li>✅ 2 Mock Exam Attempts</li>
-            <li>❌ Advanced Analytics</li>
-            <li>❌ 100% Syllabus Coverage</li>
-          </ul>
-        </div>
-        <div className="cyber-card" style={{ background: 'rgba(0, 245, 212, 0.05)', border: '2px solid var(--accent)', borderRadius: '24px', padding: '40px', position: 'relative' }}>
-          <div style={{ position: 'absolute', top: '20px', right: '20px', background: 'var(--accent)', color: '#000', padding: '4px 12px', borderRadius: '12px', fontSize: '12px', fontWeight: 800 }}>MOST POPULAR</div>
-          <h3 style={{ color: '#fff', fontSize: '24px', fontWeight: 800, marginBottom: '8px' }}>Premium Pro</h3>
-          <div style={{ fontSize: '32px', fontWeight: 900, marginBottom: '24px', color: 'var(--accent)' }}>$9 <span style={{ fontSize: '14px', fontWeight: 400, color: '#fff' }}>/ month</span></div>
-          <ul style={{ color: '#fff', fontSize: '14px', display: 'flex', flexDirection: 'column', gap: '12px', padding: 0, listStyle: 'none' }}>
-            <li>✅ Unlimited Practice & Exams</li>
-            <li>✅ Deep Performance Analytics</li>
-            <li>✅ Smart Topic Radar</li>
-            <li>✅ 24/7 Priority Support</li>
-          </ul>
-          {user?.plan === 'premium' ? (
-             <div style={{ marginTop: '24px', background: 'rgba(0,245,212,0.2)', color: 'var(--accent)', padding: '12px', borderRadius: '12px', textAlign: 'center', fontWeight: 800 }}>ACTIVE PLAN 👑</div>
-          ) : (
-             <button style={{ marginTop: '24px', width: '100%', background: 'var(--accent)', color: '#000', padding: '14px', borderRadius: '12px', border: 'none', fontWeight: 800, cursor: 'pointer' }}>Upgrade Now →</button>
-          )}
-        </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '32px', marginBottom: '48px' }}>
+        {offers.length === 0 ? (
+          <div style={{ gridColumn: 'span 2', padding: '40px', textAlign: 'center', color: 'var(--muted)' }}>Loading active plans...</div>
+        ) : offers.map((offer, idx) => {
+          const isPro = offer.tierLevel === 'PRO' || offer.tierLevel === 'PREMIUM';
+          const isCurrent = user?.plan?.toLowerCase() === offer.tierLevel?.toLowerCase();
+          
+          return (
+            <div key={offer._id || idx} className="cyber-card" style={{ 
+              background: isPro ? 'rgba(0, 245, 212, 0.05)' : 'rgba(30, 41, 59, 0.4)', 
+              border: isPro ? '2px solid var(--accent)' : '1px solid var(--border)', 
+              borderRadius: '24px', padding: '40px', position: 'relative',
+              boxShadow: isPro ? '0 0 30px rgba(0, 245, 212, 0.1)' : 'none'
+            }}>
+              {isPro && <div style={{ position: 'absolute', top: '20px', right: '20px', background: 'var(--accent)', color: '#000', padding: '4px 12px', borderRadius: '12px', fontSize: '12px', fontWeight: 800 }}>{offer.discount || 'BEST VALUE'}</div>}
+              <h3 style={{ color: '#fff', fontSize: '24px', fontWeight: 800, marginBottom: '8px' }}>{offer.title}</h3>
+              <div style={{ fontSize: '32px', fontWeight: 900, marginBottom: '24px', color: isPro ? 'var(--accent)' : 'var(--muted)' }}>
+                ₹{offer.priceOffer} <span style={{ fontSize: '14px', fontWeight: 400, color: '#fff' }}>/ {offer.durationDays} days</span>
+              </div>
+              <ul style={{ color: '#fff', fontSize: '14px', display: 'flex', flexDirection: 'column', gap: '12px', padding: 0, listStyle: 'none', marginBottom: '32px' }}>
+                {offer.features?.map((f, i) => (
+                  <li key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <span style={{ color: isPro ? 'var(--accent)' : 'var(--muted)' }}>✔</span> {f}
+                  </li>
+                ))}
+              </ul>
+              {isCurrent ? (
+                 <div style={{ background: 'rgba(0,245,212,0.2)', color: 'var(--accent)', padding: '12px', borderRadius: '12px', textAlign: 'center', fontWeight: 800 }}>CURRENT PLAN 👑</div>
+              ) : (
+                 <button 
+                   onClick={() => window.open('/?view=pricing', '_blank')}
+                   style={{ width: '100%', background: isPro ? 'var(--accent)' : 'rgba(255,255,255,0.1)', color: isPro ? '#000' : '#fff', padding: '14px', borderRadius: '12px', border: 'none', fontWeight: 800, cursor: 'pointer' }}
+                 >
+                   Upgrade for ₹{offer.priceOffer} →
+                 </button>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       <div style={{ background: 'var(--glass)', border: '1px solid var(--border)', borderRadius: '24px', padding: '32px', textAlign: 'center' }}>
@@ -453,6 +525,89 @@ const UpgradePortal = React.memo(({ activeSide, token, showToast, refreshUser, u
           <input type="text" value={code} onChange={e => setCode(e.target.value)} placeholder="ENTER CODE HERE" style={{ flex: 1, background: 'rgba(0,0,0,0.3)', border: '1px solid var(--border)', borderRadius: '10px', padding: '12px 16px', color: '#fff', outline: 'none', fontFamily: 'var(--font-mono)', letterSpacing: '1px' }} />
           <button onClick={applyCoupon} disabled={applying} style={{ background: 'var(--accent)', color: '#000', padding: '0 24px', borderRadius: '10px', border: 'none', fontWeight: 800, cursor: 'pointer' }}>
             {applying ? '...' : 'APPLY'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+});
+
+const SubscriptionPortal = React.memo(({ activeSide, user, setActiveSide }) => {
+  if (activeSide !== 'subscriptions') return null;
+  const sub = user?.subscription || { planName: 'Free Practitioner', planType: 'Free' };
+  
+  return (
+    <div style={{ animation: 'fadeIn 0.5s', padding: '24px', maxWidth: '1000px' }}>
+      <div style={{ marginBottom: '32px' }}>
+        <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '32px', fontWeight: 800, color: '#fff', marginBottom: '8px' }}>💳 Subscription Management</h2>
+        <p style={{ color: 'var(--muted)', fontSize: '16px' }}>View your active entitlements and manage your exam attempts.</p>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px' }}>
+        {/* 🌟 Active Plan Card */}
+        <div className="cyber-card" style={{ 
+          background: 'linear-gradient(135deg, rgba(0, 245, 212, 0.1), rgba(0, 0, 0, 0.4))', 
+          border: '1px solid var(--accent)', 
+          borderRadius: '24px', padding: '32px', position: 'relative', overflow: 'hidden' 
+        }}>
+          <div style={{ position: 'absolute', top: '-10px', right: '-10px', fontSize: '80px', opacity: 0.05 }}>💎</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+            <div style={{ padding: '8px', background: 'var(--accent)', borderRadius: '10px', color: '#000', fontWeight: 900, fontSize: '12px' }}>ACTIVE</div>
+            <h3 style={{ color: '#fff', fontSize: '20px', fontWeight: 800, margin: 0 }}>{sub.planName}</h3>
+          </div>
+          
+          <div style={{ marginBottom: '24px' }}>
+            <div style={{ fontSize: '11px', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 800, marginBottom: '4px' }}>Billing Cycle</div>
+            <div style={{ color: '#fff', fontSize: '15px', fontWeight: 600 }}>{sub.planType === 'time' ? 'Annual / Monthly' : 'Attempt Based'}</div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+             <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: '16px', padding: '16px', border: '1px solid var(--border)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                   <span style={{ fontSize: '13px', color: 'var(--muted)', fontWeight: 600 }}>Plan Validity</span>
+                   <span style={{ fontSize: '13px', color: '#fff', fontWeight: 800 }}>{sub.validUntil ? new Date(sub.validUntil).toLocaleDateString() : 'Unlimited'}</span>
+                </div>
+                <div style={{ height: '6px', background: 'rgba(255,255,255,0.05)', borderRadius: '3px' }}>
+                   <div style={{ height: '100%', width: '100%', background: 'var(--accent)', borderRadius: '3px', boxShadow: '0 0 10px var(--accent)' }}></div>
+                </div>
+             </div>
+             
+             {sub.planType === 'attempts' && (
+                <div style={{ background: 'rgba(0, 187, 249, 0.05)', borderRadius: '16px', padding: '16px', border: '1px solid rgba(0, 187, 249, 0.3)' }}>
+                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                      <span style={{ fontSize: '13px', color: 'var(--muted)', fontWeight: 600 }}>Exam Attempts</span>
+                      <span style={{ fontSize: '13px', color: '#00bbf9', fontWeight: 800 }}>{sub.maxAttempts || 0} Total</span>
+                   </div>
+                </div>
+             )}
+          </div>
+        </div>
+
+        {/* 🚀 Entitlements Card */}
+        <div style={{ background: 'var(--glass)', border: '1px solid var(--border)', borderRadius: '24px', padding: '32px' }}>
+          <h3 style={{ color: '#fff', fontSize: '18px', fontWeight: 800, marginBottom: '20px' }}>⚡ Plan Entitlements</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {[
+              { icon: '🎓', label: 'Access to All Mock Exams' },
+              { icon: '🛠️', label: 'Unlimited Practice Mode' },
+              { icon: '📈', label: 'Advanced Analytics Dashboard' },
+              { icon: '🎁', label: 'Daily Rewards Participation' },
+              { icon: '✅', label: 'Verified Success Badges' }
+            ].map((p, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <span style={{ fontSize: '18px' }}>{p.icon}</span>
+                <span style={{ color: 'var(--text)', fontSize: '14px', fontWeight: 600 }}>{p.label}</span>
+              </div>
+            ))}
+          </div>
+          
+          <button 
+            onClick={() => setActiveSide('upgrade')}
+            style={{ marginTop: '32px', width: '100%', background: 'transparent', border: '1px solid var(--border)', color: '#fff', padding: '14px', borderRadius: '12px', fontWeight: 800, cursor: 'pointer', fontSize: '13px', transition: 'all 0.2s' }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.borderColor = 'var(--accent)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'var(--border)'; }}
+          >
+            Upgrade or Renew Plan →
           </button>
         </div>
       </div>
@@ -516,13 +671,91 @@ const AnalyticsPortal = React.memo(({ activeSide, filterTime, setFilterTime, fil
   );
 });
 
+const LeaderboardPortal = React.memo(({ activeSide, leaderboardData, loading }) => {
+  if (activeSide !== 'rankings') return null;
+  if (loading || !leaderboardData) return <div style={{ color: '#fff', textAlign: 'center', padding: '100px' }}>Loading the Hall of Fame... 🏆</div>;
+
+  const { top5, surrounding } = leaderboardData;
+
+  const LeaderboardCapsule = ({ item, isTop3 }) => (
+    <div 
+      key={item.code} 
+      style={{ 
+        display: 'flex', alignItems: 'center', gap: '20px', 
+        background: item.isCurrentUser ? 'rgba(59, 130, 246, 0.08)' : 'var(--glass)', 
+        border: item.isCurrentUser ? '2px solid #3b82f6' : '1px solid var(--border)',
+        borderRadius: '24px', padding: '24px 32px', marginBottom: '16px',
+        boxShadow: item.isCurrentUser ? '0 0 30px rgba(59, 130, 246, 0.15)' : 'none',
+        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+        position: 'relative'
+      }}
+    >
+      {/* 🏆 Rank Indicator */}
+      <div style={{ width: '50px', height: '50px', borderRadius: '50%', background: isTop3 ? (item.rank === 1 ? '#facc15' : item.rank === 2 ? '#94a3b8' : '#cd7f32') : 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', fontWeight: 900, color: isTop3 ? '#000' : 'var(--muted)' }}>
+        #{item.rank}
+      </div>
+
+      {/* 👤 Avatar */}
+      <div style={{ width: '60px', height: '60px', borderRadius: '50%', background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)', border: '2px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', color: '#fff', fontWeight: 800 }}>
+        {item.name?.charAt(0).toUpperCase()}
+      </div>
+
+      {/* 📝 Name & Streak */}
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: '18px', fontWeight: 800, color: '#fff', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+          {item.name}
+          {item.rank <= 3 && <span style={{ fontSize: '16px' }}>{item.rank === 1 ? '🥇' : item.rank === 2 ? '🥈' : '🥉'}</span>}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#fb923c', fontSize: '13px', fontWeight: 700 }}>
+          <span style={{ fontSize: '16px' }}>🔥</span> {item.streak} day streak
+        </div>
+      </div>
+
+      {/* 💎 Points */}
+      <div style={{ textAlign: 'right' }}>
+        <div style={{ fontSize: '24px', fontWeight: 900, color: '#fff', lineHeight: 1 }}>{item.points.toLocaleString()}</div>
+        <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '4px', textTransform: 'uppercase', letterSpacing: '1px' }}>points</div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{ animation: 'fadeIn 0.5s', maxWidth: '900px', margin: '0 auto' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '40px' }}>
+        <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px' }}>🏆</div>
+        <div>
+          <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '32px', fontWeight: 800, color: '#fff', margin: 0 }}>Hall of Fame</h2>
+          <p style={{ color: 'var(--muted)', fontSize: '16px', margin: '4px 0 0 0' }}>The top scholars competing for excellence.</p>
+        </div>
+      </div>
+
+      {/* 🥇 Top 5 Section */}
+      <div style={{ marginBottom: '48px' }}>
+        <h3 style={{ fontSize: '14px', color: 'var(--muted)', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '24px', borderLeft: '4px solid var(--accent)', paddingLeft: '16px' }}>Top 5 Leaders</h3>
+        {top5.map(item => <LeaderboardCapsule key={item.code} item={item} isTop3={item.rank <= 3} />)}
+      </div>
+
+      {/* ⚡ Contextual Window */}
+      {surrounding.length > 0 && (
+        <div>
+          <h3 style={{ fontSize: '14px', color: 'var(--muted)', fontWeight: 800, letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '24px', borderLeft: '4px solid #3b82f6', paddingLeft: '16px' }}>Your Neighbors</h3>
+          {surrounding.map(item => <LeaderboardCapsule key={item.code} item={item} isTop3={false} />)}
+        </div>
+      )}
+    </div>
+  );
+});
+
 export default function HomePage() {
   const { user, token, refreshUser } = useAuth();
   const navigate = useNavigate();
   const [leaderboard, setLeaderboard] = useState([]);
+  const [studentLeaderboard, setStudentLeaderboard] = useState(null);
   const [practiceTimer, setPracticeTimer] = useState(0);
   const [activities, setActivities] = useState([]);
 const [submissions, setSubmissions] = useState([]);
+const [reviews, setReviews] = useState([]); // New: for Wall of Fame
+const [reviewStats, setReviewStats] = useState({ avgRating: 5.0, totalReviews: 0 });
 
 const [activeSide, setActiveSide] = useState('home');
 const [sidebarOpen, setSidebarOpen] = useState(false); // 'home', 'dashboard', 'exams', 'practice'
@@ -544,26 +777,28 @@ const [examSubCategory, setExamSubCategory] = useState('All');
 const [chartPeriod, setChartPeriod] = useState('all');
 const [topicFilter, setTopicFilter] = useState('Aptitude');
 const [categoryMap, setCategoryMap] = useState({ Aptitude: [], Reasoning: [], Verbal: [], Technical: [] });
+const [activeOffers, setActiveOffers] = useState([]);
 const [disabledTopics, setDisabledTopics] = useState([]);
 
-const [showSupport, setShowSupport] = useState(false);
-const [supportMsg, setSupportMsg] = useState("");
-const [isSendingSupport, setIsSendingSupport] = useState(false);
+// New: Handle Quick Rating Submission
+const [ratingVal, setRatingVal] = useState(5);
+const [ratingMsg, setRatingMsg] = useState("");
+const [isRating, setIsRating] = useState(false);
+const [showRatingModal, setShowRatingModal] = useState(false);
 
-const handleSupportSubmit = async () => {
-    if (!supportMsg.trim()) return showToast("Please describe your issue.");
-    setIsSendingSupport(true);
+const handleRatingSubmit = async () => {
+    if (!ratingMsg.trim()) return showToast("Please share a quick thought!");
+    setIsRating(true);
     try {
-      await axios.post(`${API}/admin/support`, { 
-        message: supportMsg,
-        userName: user?.displayName || 'Student',
-        userCode: user?.uid || 'Unknown' 
+      await axios.post(`${API}/exam/feedback`, { 
+        message: ratingMsg,
+        rating: ratingVal
       }, { headers: { Authorization: `Bearer ${token}` } });
-      showToast("Issue reported! Our team will review it. 🚀");
-      setSupportMsg("");
-      setShowSupport(false);
-    } catch (e) { showToast("Failed to send report. Please try again."); }
-    finally { setIsSendingSupport(false); }
+      showToast("Review submitted for admin moderation! 🎉");
+      setRatingMsg("");
+      setShowRatingModal(false);
+    } catch (e) { showToast("Failed to post rating. Please try again."); }
+    finally { setIsRating(true); } // Keep disabled to prevent double clicks or just leave it
 };
 
 const showToast = (message) => {
@@ -576,7 +811,11 @@ useEffect(() => {
       .then(r => setUserExams(r.data))
       .catch(() => { });
   }
-}, [activeSide]);
+
+  axios.get(`${API}/auth/offers/active`)
+    .then(r => setActiveOffers(r.data))
+    .catch(err => console.error("Offers fetch failed", err));
+}, [activeSide, token]);
 
 const advancedChartData = React.useMemo(() => {
   return advancedStats.map(s => ({
@@ -686,6 +925,19 @@ const fetchData = () => {
 useEffect(() => {
   refreshUser();
   axios.get(`${API}/leaderboard`).then(r => setLeaderboard(r.data)).catch(() => { });
+  
+  if (token) {
+    axios.get(`${API}/leaderboard/student-view`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => setStudentLeaderboard(r.data))
+      .catch(() => { });
+    
+    // New: Fetch reviews for Wall of Fame
+    axios.get(`${API}/auth/reviews`).then(r => {
+      setReviews(r.data.reviews || []);
+      if (r.data.stats) setReviewStats(r.data.stats);
+    }).catch(() => { });
+  }
+
   fetchData();
 }, [token]);
 
@@ -761,6 +1013,17 @@ const handleStartExam = (examKey) => {
     if (!isUnlimited && sub.planType === 'attempts' && submissions.length >= (sub.maxAttempts || 2)) {
       return setModal({ show: true, type: 'alert', title: 'Exam Limit Reached', message: `You reached the max limit (${sub.maxAttempts || 2}) for attempts.` });
     }
+
+    // 🛡️ STRICT POLICY: Block re-attempts (New)
+    const alreadyDone = submissions.some(s => s.examType === examKey);
+    if (alreadyDone) {
+      return setModal({ 
+        show: true, 
+        type: 'alert', 
+        title: 'Exam Already Completed', 
+        message: 'Strict Policy: You have already completed this exam. Re-attempts are disabled to ensure fair ranking. Please check your History for results.' 
+      });
+    }
   }
   navigate(`/user/exam?type=${examKey}`);
 };
@@ -804,12 +1067,15 @@ return (
           {[
             { id: 'home', icon: '🏠', title: 'Home' },
             { id: 'dashboard', icon: '📊', title: 'Dashboard' },
+            { id: 'rankings', icon: '🏆', title: 'Hall of Fame' },
             { id: 'analytics', icon: '📈', title: 'Analytics' },
             { id: 'topic-mastery', icon: '🎯', title: 'Topic Mastery' },
             { id: 'exams', icon: '🎓', title: 'Exams' },
             { id: 'practice', icon: '🛠️', title: 'Practice Mode' },
+            { id: 'wall-of-fame', icon: '🌟', title: 'Success Stories' },
             { id: 'history', icon: '📜', title: 'Exam History' },
             { id: 'rewards', icon: '🎁', title: 'Daily Rewards' },
+            { id: 'subscriptions', icon: '💳', title: 'Subscriptions' },
             { id: 'upgrade', icon: '👑', title: 'Go Premium' }
           ].map((item, idx) => (
             <div
@@ -853,17 +1119,21 @@ return (
             </div>
 
             {/* 🚀 Launchpad Grid */}
-            <h3 style={{ color: '#fff', fontSize: '20px', fontWeight: 800, marginBottom: '20px' }}>🚀 Quick Launchpad</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '24px' }}>
-              <div onClick={() => setActiveSide('exams')} className="cyber-card" style={{ background: 'linear-gradient(145deg, rgba(0,245,212,0.1), rgba(0,0,0,0.4))', border: '1px solid rgba(0,245,212,0.2)', borderRadius: '20px', padding: '32px', cursor: 'pointer' }}>
-                <div style={{ fontSize: '32px', marginBottom: '16px' }}>🎓</div>
-                <h4 style={{ color: '#fff', fontSize: '20px', fontWeight: 800, marginBottom: '8px' }}>Mock Examination</h4>
-                <p style={{ color: 'var(--muted)', fontSize: '13px' }}>Take full-length tests and test your speed with real exam simulations.</p>
-              </div>
-              <div onClick={() => setActiveSide('practice')} className="cyber-card" style={{ background: 'linear-gradient(145deg, rgba(0,187,249,0.1), rgba(0,0,0,0.4))', border: '1px solid rgba(0,187,249,0.2)', borderRadius: '20px', padding: '32px', cursor: 'pointer' }}>
-                <div style={{ fontSize: '32px', marginBottom: '16px' }}>🛠️</div>
-                <h4 style={{ color: '#fff', fontSize: '20px', fontWeight: 800, marginBottom: '8px' }}>Practice Mode</h4>
-                <p style={{ color: 'var(--muted)', fontSize: '13px' }}>Solve topic-wise questions with real-time feedback and stats percentages.</p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: '24px', marginBottom: '40px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                <h3 style={{ color: '#fff', fontSize: '20px', fontWeight: 800 }}>🚀 Quick Launchpad</h3>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
+                  <div onClick={() => setActiveSide('exams')} className="cyber-card" style={{ background: 'linear-gradient(145deg, rgba(0,245,212,0.06), rgba(0,0,0,0.4))', border: '1px solid rgba(0,245,212,0.15)', borderRadius: '20px', padding: '32px', cursor: 'pointer' }}>
+                    <div style={{ fontSize: '32px', marginBottom: '16px' }}>🎓</div>
+                    <h4 style={{ color: '#fff', fontSize: '20px', fontWeight: 800, marginBottom: '8px' }}>Mock Examination</h4>
+                    <p style={{ color: 'var(--muted)', fontSize: '13px' }}>Take full-length tests and test your speed with real exam simulations.</p>
+                  </div>
+                  <div onClick={() => setActiveSide('practice')} className="cyber-card" style={{ background: 'linear-gradient(145deg, rgba(0,187,249,0.06), rgba(0,0,0,0.4))', border: '1px solid rgba(0,187,249,0.15)', borderRadius: '20px', padding: '32px', cursor: 'pointer' }}>
+                    <div style={{ fontSize: '32px', marginBottom: '16px' }}>🛠️</div>
+                    <h4 style={{ color: '#fff', fontSize: '20px', fontWeight: 800, marginBottom: '8px' }}>Practice Mode</h4>
+                    <p style={{ color: 'var(--muted)', fontSize: '13px' }}>Solve topic-wise questions with real-time feedback and stats percentages.</p>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -1100,7 +1370,61 @@ return (
 
         {/* 🌿 Right Panel — Portals Routing */}
         <RewardsPortal activeSide={activeSide} token={token} showToast={showToast} refreshUser={refreshUser} />
-        <UpgradePortal activeSide={activeSide} token={token} showToast={showToast} refreshUser={refreshUser} user={user} />
+        <UpgradePortal 
+          activeSide={activeSide} 
+          token={token} 
+          showToast={showToast} 
+          refreshUser={refreshUser} 
+          user={user} 
+          offers={activeOffers}
+        />
+        <SubscriptionPortal activeSide={activeSide} user={user} setActiveSide={setActiveSide} />
+        <LeaderboardPortal activeSide={activeSide} leaderboardData={studentLeaderboard} loading={loading} />
+
+        {/* 🏆 Success Stories (Wall of Fame) Mode */}
+        {activeSide === 'wall-of-fame' && (
+          <div style={{ animation: 'fadeIn 0.5s ease-out' }}>
+            <div style={{ marginBottom: '40px' }}>
+              <h2 style={{ color: '#fff', fontSize: '32px', fontWeight: 900, marginBottom: '8px' }}>🌟 Success Stories</h2>
+              <p style={{ color: 'var(--muted)', fontSize: '15px' }}>Inspiration from our elite global community of active scholars.</p>
+              <div style={{ display: 'flex', gap: '16px', marginTop: '20px', flexWrap: 'wrap' }}>
+                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(0, 245, 212, 0.08)', padding: '12px 20px', borderRadius: '16px', border: '1px solid rgba(0, 245, 212, 0.2)' }}>
+                    <span style={{ color: '#ffb703', fontSize: '24px' }}>★</span>
+                    <span style={{ color: '#fff', fontSize: '20px', fontWeight: 900 }}>{reviewStats.avgRating}/5.0</span>
+                    <span style={{ color: 'var(--muted)', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '1px' }}>Global Rating</span>
+                 </div>
+                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(255,255,255,0.03)', padding: '12px 20px', borderRadius: '16px', border: '1px solid var(--border)' }}>
+                    <span style={{ fontSize: '24px' }}>🛡️</span>
+                    <span style={{ color: '#fff', fontSize: '20px', fontWeight: 900 }}>{reviewStats.totalReviews}</span>
+                    <span style={{ color: 'var(--muted)', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '1px' }}>Verified Stories</span>
+                 </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '24px', paddingBottom: '40px' }}>
+              {reviews.map((r, i) => (
+                <div key={i} className="cyber-card" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)', borderRadius: '24px', padding: '32px', display: 'flex', flexDirection: 'column' }}>
+                   <div style={{ display: 'flex', gap: '4px', color: '#ffb703', fontSize: '16px', marginBottom: '20px' }}>
+                      {[...Array(5)].map((_, si) => (
+                        <span key={si} style={{ opacity: si < (Number(r.rating) || 5) ? 1 : 0.1 }}>★</span>
+                      ))}
+                   </div>
+                   <p style={{ fontSize: '15px', color: 'var(--text)', lineHeight: 1.8, fontStyle: 'italic', margin: '0 0 24px 0', minHeight: '80px' }}>"{r.text}"</p>
+                   <div style={{ marginTop: 'auto', borderTop: '1px dashed var(--border)', paddingTop: '20px', display: 'flex', alignItems: 'center', gap: '16px' }}>
+                      <div style={{ width: '44px', height: '44px', borderRadius: '50%', background: 'linear-gradient(135deg, var(--accent), var(--accent2))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', fontWeight: 900, color: '#000' }}>{r.name?.[0] || 'U'}</div>
+                      <div>
+                         <div style={{ fontSize: '15px', fontWeight: 800, color: '#fff' }}>{r.name}</div>
+                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <div style={{ width: '8px', height: '8px', background: '#10b981', borderRadius: '50%' }}></div>
+                            <span style={{ fontSize: '11px', color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Verified • {r.plan || 'Scholar'}</span>
+                         </div>
+                      </div>
+                   </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         {modal.show && (
           <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(5px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
             <div style={{ background: 'var(--glass)', backdropFilter: 'blur(10px)', border: '1px solid var(--border)', borderRadius: '24px', padding: '32px', width: '90%', maxWidth: '400px', textAlign: 'center', boxShadow: '0 20px 40px rgba(0,0,0,0.5)' }}>
@@ -1120,39 +1444,56 @@ return (
             </div>
           </div>
         )}
-        {/* 🆘 Support Floating Widget */}
+        {/* ✍️ Quick Rating Widget (FLOATING ABOVE SUPPORT) */}
         <button 
-          onClick={() => setShowSupport(true)}
-          style={{ position: 'fixed', bottom: '32px', right: '32px', width: '64px', height: '64px', background: 'var(--accent)', color: '#000', borderRadius: '50%', border: 'none', fontSize: '24px', cursor: 'pointer', boxShadow: '0 10px 40px rgba(0, 245, 212, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9000, transition: '0.3s' }}
-          onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.1) rotate(5deg)'}
-          onMouseLeave={e => e.currentTarget.style.transform = 'scale(1) rotate(0deg)'}
+          onClick={() => setShowRatingModal(!showRatingModal)}
+          style={{ position: 'fixed', bottom: '112px', right: '32px', width: '56px', height: '56px', background: 'rgba(255, 183, 3, 0.1)', border: '1px solid #ffb703', borderRadius: '50%', color: '#ffb703', fontSize: '20px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9000, transition: 'all 0.2s', boxShadow: '0 8px 30px rgba(255, 183, 3, 0.15)' }}
+          onMouseEnter={e => e.currentTarget.style.transform='scale(1.1)'}
+          onMouseLeave={e => e.currentTarget.style.transform='scale(1)'}
+          title="Rate Platform"
         >
-          🆘
+          ✍️
         </button>
 
-        {showSupport && (
-          <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(10px)', zIndex: 11000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-            <div className="glass-card" style={{ width: '100%', maxWidth: '500px', padding: '32px', borderRadius: '24px', background: '#0b1221', border: '1px solid var(--border2)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '24px' }}>
-                <h2 style={{ fontSize: '20px', fontWeight: 800, color: '#fff' }}>Report an Issue 🛡️</h2>
-                <button onClick={() => setShowSupport(false)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: '24px' }}>✕</button>
-              </div>
-              <p style={{ fontSize: '14px', color: 'var(--muted)', marginBottom: '20px' }}>Describe the problem you're facing. Our technical team will resolve it within 24 hours.</p>
-              <textarea 
-                value={supportMsg}
-                onChange={e => setSupportMsg(e.target.value)}
-                placeholder="Type your message here..."
-                style={{ width: '100%', minHeight: '120px', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--border2)', borderRadius: '12px', color: '#fff', padding: '16px', fontSize: '14px', outline: 'none', marginBottom: '24px' }}
-              />
-              <div style={{ display: 'flex', gap: '16px' }}>
-                <button onClick={() => setShowSupport(false)} style={{ flex: 1, padding: '14px', background: 'rgba(255,255,255,0.05)', color: '#fff', border: '1px solid var(--border)', borderRadius: '12px', fontWeight: 700, cursor: 'pointer' }}>Cancel</button>
-                <button onClick={handleSupportSubmit} disabled={isSendingSupport} style={{ flex: 1, padding: '14px', background: 'var(--accent)', color: '#000', border: 'none', borderRadius: '12px', fontWeight: 800, cursor: 'pointer' }}>
-                  {isSendingSupport ? 'Sending...' : 'Submit Report 🚀'}
-                </button>
-              </div>
+        {showRatingModal && (
+          <div style={{ position: 'fixed', bottom: '180px', right: '32px', width: '320px', background: 'rgba(10, 15, 30, 0.85)', backdropFilter: 'blur(20px)', border: '1px solid var(--border)', borderRadius: '24px', padding: '24px', boxShadow: '0 20px 50px rgba(0,0,0,0.5)', zIndex: 9001, animation: 'fadeIn 0.3s ease-out' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h4 style={{ color: '#fff', fontSize: '16px', fontWeight: 800, margin: 0 }}>Rate the Platform 🚀</h4>
+              <button onClick={() => setShowRatingModal(false)} style={{ background: 'transparent', border: 'none', color: 'var(--muted)', fontSize: '20px', cursor: 'pointer' }}>×</button>
             </div>
+            
+            <p style={{ color: 'var(--muted)', fontSize: '12px', marginBottom: '16px', lineHeight: 1.5 }}>Your feedback helps us evolve the exam engine. Earn 50 XP!</p>
+
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '20px' }}>
+              {[1,2,3,4,5].map(num => (
+                <div 
+                  key={num} 
+                  onClick={() => setRatingVal(num)}
+                  style={{ fontSize: '24px', cursor: 'pointer', color: num <= ratingVal ? '#ffb703' : 'rgba(255,255,255,0.1)', transition: 'all 0.2s' }}
+                >
+                  ★
+                </div>
+              ))}
+            </div>
+
+            <textarea 
+              value={ratingMsg}
+              onChange={e => setRatingMsg(e.target.value)}
+              placeholder="Tell us what you liked..."
+              style={{ width: '100%', height: '80px', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--border2)', borderRadius: '12px', padding: '12px', color: '#fff', fontSize: '13px', resize: 'none', outline: 'none', marginBottom: '16px' }}
+            />
+
+            <button 
+              onClick={handleRatingSubmit}
+              disabled={isRating && ratingMsg === ""}
+              style={{ width: '100%', background: 'var(--accent)', color: '#000', padding: '12px', borderRadius: '10px', border: 'none', fontWeight: 800, cursor: 'pointer', transition: 'all 0.2s', textTransform: 'uppercase', letterSpacing: '1px', fontSize: '12px' }}
+            >
+              {isRating && ratingMsg === "" ? "REVIEW SAVED ✅" : "Submit Review"}
+            </button>
           </div>
         )}
+
+        {/* 🌿 Main Panel — End */}
 
       </div>
     </div>

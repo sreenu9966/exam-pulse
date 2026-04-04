@@ -2,6 +2,7 @@ const router = require('express').Router();
 const authMiddleware = require('../middleware/authMiddleware');
 const User = require('../models/User');
 const Submission = require('../models/Submission');
+const Exam = require('../models/Exam');
 const Question = require('../models/Question');
 const Activity = require('../models/Activity');
 const Review = require('../models/Review');
@@ -11,6 +12,20 @@ router.post('/submit', authMiddleware, async (req, res) => {
   try {
     const { score, total, pct, timeUsed, answers, examType, topics, page } = req.body;
     const { code, name } = req.user;
+
+    // 🕒 TIME WINDOW ENFORCEMENT (8:30 AM - 6:30 PM)
+    const now = new Date();
+    const ISTOffset = 5.5 * 60 * 60 * 1000;
+    const istDate = new Date(now.getTime() + ISTOffset);
+    const hour = istDate.getUTCHours();
+    const minute = istDate.getUTCMinutes();
+    const timeVal = hour + minute / 60;
+
+    if (timeVal < 8.5 || timeVal > 18.5) {
+      return res.status(403).json({ 
+        error: `Exam window closed! 🔒 Exams are only available between 8:30 AM and 6:30 PM. Current time: ${hour}:${minute.toString().padStart(2, '0')} IST` 
+      });
+    }
 
     const user = await User.findOne({ code });
     if (!user) return res.status(404).json({ error: 'User not found' });
@@ -46,6 +61,14 @@ router.post('/submit', authMiddleware, async (req, res) => {
         return res.status(403).json({ error: `You have reached your maximum limit of ${sub.maxAttempts || 2} exams.` });
     }
 
+    // 🛡️ SINGLE ATTEMPT ENFORCEMENT (New)
+    const existingSubmission = await Submission.findOne({ userCode: code, examType: examType || '' });
+    if (existingSubmission && examType) {
+      return res.status(403).json({ 
+        error: `Strict Policy: You have already completed this exam. Re-attempts are disabled. Check your History for results.` 
+      });
+    }
+
     // SECURITY UPGRADE: Recalculate score on server-side to prevent cheating
     let calculatedScore = 0;
     const finalAnswers = [];
@@ -73,12 +96,26 @@ router.post('/submit', authMiddleware, async (req, res) => {
     const finalTotal = answers.length || total;
     const finalPct = Math.round((calculatedScore / finalTotal) * 100);
 
+    // 📊 WEIGHTED SCORING FORMULA (New)
+    // speed = (TimeRemaining / TotalDuration) * 100
+    // weighted = (marks*0.7) + (accuracy*0.2) + (speed*0.1)
+    const skipped = answers.filter(a => a.selected === -1).length;
+    const accuracy = (calculatedScore / (finalTotal - skipped)) * 100 || 0;
+    
+    // We assume duration is 60 mins if not provided
+    const durationSec = 60 * 60; 
+    const speedScore = Math.max(0, ((durationSec - timeUsed) / durationSec) * 100);
+    const weightedScore = (finalPct * 0.7) + (accuracy * 0.2) + (speedScore * 0.1);
+
     // Save Submission to separate collection (Prevents 16MB document size limit issue)
     const newSub = new Submission({
       userCode: code,
       score: calculatedScore, 
       total: finalTotal, 
       pct: finalPct, 
+      accuracy: Math.round(accuracy),
+      speedScore: Math.round(speedScore),
+      weightedScore: Math.round(weightedScore * 100) / 100,
       timeUsed, 
       examType: examType || '', 
       topics: topics || '', 
@@ -101,6 +138,34 @@ router.post('/submit', authMiddleware, async (req, res) => {
         Question.bulkWrite(bulkOps).catch(err => console.error("Bulk Stats Error:", err));
       }
     }
+
+    // 🔥 STREAK ENGINE: Update daily learning streak
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    if (!user.lastStreakDate) {
+      user.currentStreak = 1;
+      user.lastStreakDate = today;
+    } else {
+      const lastDate = new Date(user.lastStreakDate);
+      lastDate.setHours(0, 0, 0, 0);
+      
+      if (lastDate.getTime() === yesterday.getTime()) {
+        user.currentStreak += 1;
+        user.lastStreakDate = today;
+      } else if (lastDate.getTime() < yesterday.getTime()) {
+        user.currentStreak = 1;
+        user.lastStreakDate = today;
+      }
+      // If lastDate === today, already updated for today
+    }
+
+    // ⭐ POINT ENGINE: Every correct answer = 1 Mark (New)
+    user.totalPoints = (user.totalPoints || 0) + calculatedScore;
+
+    await user.save();
 
     new Activity({ action: 'EXAM_SUBMIT', detail: `Completed Exam: ${pct}%`, userCode: code }).save().catch(() => {});
 
@@ -152,11 +217,8 @@ router.post('/save-practice-answer', authMiddleware, async (req, res) => {
     const isCorrect = (selected === Number(q.a) || q.o[selected] === q.a);
     if (isCorrect) {
       qData.solved = true;
-      let p = 0;
-      if (qData.attempts === 1) p = 5;
-      else if (qData.attempts === 2) p = 2;
-      else if (qData.attempts === 3) p = 1;
-      else p = 0.1;
+      // Fixed 1 Mark Scoring (New)
+      let p = 1;
 
       qData.points = p;
       user.totalPoints = (user.totalPoints || 0) + p;
@@ -170,6 +232,28 @@ router.post('/save-practice-answer', authMiddleware, async (req, res) => {
       await Question.findByIdAndUpdate(qId, { $inc: { [incField]: 1 } });
     }
 
+    // 🔥 STREAK ENGINE: Also update streak for practice sessions
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    if (!user.lastStreakDate) {
+      user.currentStreak = 1;
+      user.lastStreakDate = today;
+    } else {
+      const lastDate = new Date(user.lastStreakDate);
+      lastDate.setHours(0, 0, 0, 0);
+      
+      if (lastDate.getTime() === yesterday.getTime()) {
+        user.currentStreak += 1;
+        user.lastStreakDate = today;
+      } else if (lastDate.getTime() < yesterday.getTime()) {
+        user.currentStreak = 1;
+        user.lastStreakDate = today;
+      }
+    }
+
     await user.save();
     res.json({ success: true, points: user.totalPoints, qData });
   } catch (err) {
@@ -177,18 +261,9 @@ router.post('/save-practice-answer', authMiddleware, async (req, res) => {
   }
 });
 
-// POST /api/exam/reset-practice
+// POST /api/exam/reset-practice (DISABLED BY POLICY)
 router.post('/reset-practice', authMiddleware, async (req, res) => {
-  try {
-    const user = await User.findOne({ code: req.user.code });
-    if (!user) return res.status(404).json({ error: 'User not found' });
-
-    user.practiceAnswers = new Map();
-    user.totalPoints = 0;
-    await user.save();
-
-    res.json({ success: true, message: 'Practice session reset successfully 🔄' });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  res.status(403).json({ error: 'Strict Policy: Resetting practice sessions is disabled to maintain leaderboard integrity.' });
 });
 
 // GET /api/exam/profile — get current user profile + rank
@@ -254,17 +329,26 @@ router.post('/feedback', authMiddleware, async (req, res) => {
     const { message, rating } = req.body;
     if (!message) return res.status(400).json({ error: 'Message is required' });
 
-    const feedback = new Review({
-      name: req.user.name || 'Student',
-      role: 'Student Candidate',
-      text: message.trim(),
-      rating: rating || 5, // Default to 5
-      approved: true       // Live by default for continuous view (Change to false if moderation is built later)
-    });
+    // Fetch user to get their current plan
+    const user = await User.findOne({ code: req.user.code });
+    const userPlan = user?.subscription?.planName || 'Website Visitor';
+
+    // Use findOneAndUpdate with upsert: true to ensure "One Student, One Review"
+    const feedback = await Review.findOneAndUpdate(
+      { userCode: req.user.code },
+      {
+        name: user?.name || 'Student',
+        role: 'Student Candidate',
+        text: message.trim(),
+        rating: rating || 5,
+        plan: userPlan,
+        approved: false, // Reset to false for Admin re-moderation on every update
+        createdAt: Date.now() // Refresh the date
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
     
-    await feedback.save();
-    
-    new Activity({ action: 'FEEDBACK_SUBMIT', detail: `Submitted exam review with ${rating || 5} stars`, userCode: req.user.code }).save().catch(() => {});
+    new Activity({ action: 'FEEDBACK_SUBMIT', detail: `Submitted review with ${rating || 5} stars`, userCode: req.user.code }).save().catch(() => {});
 
     res.json({ success: true, message: 'Review submitted for Admin approval ✅' });
   } catch (err) { res.status(500).json({ error: err.message }); }

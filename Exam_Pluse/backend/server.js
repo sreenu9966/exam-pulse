@@ -2,6 +2,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 require('dotenv').config();
+const initCronJobs = require('./utils/cronJobs');
 
 const app = express();
 
@@ -24,6 +25,7 @@ const PORT = process.env.PORT || 5000;
 mongoose.connect(process.env.MONGO_URI)
   .then(() => {
     console.log('✅ MongoDB Connected — tcsnqt2026');
+    initCronJobs(); // 🕒 Start Daily Automated Tasks
     app.listen(PORT, () => console.log(`🚀 Server running on http://localhost:${PORT}`));
   })
   .catch(err => { console.error('❌ MongoDB Connection Error:', err); process.exit(1); });

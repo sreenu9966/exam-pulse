@@ -301,6 +301,39 @@ router.post('/revoke/:code', adminAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// PUT /api/admin/users/bulk-extend — Batch extension for multiple users
+router.put('/users/bulk-extend', adminAuth, async (req, res) => {
+  try {
+    const { ids, days } = req.body;
+    if (!ids || !Array.isArray(ids) || ids.length === 0) return res.status(400).json({ error: 'No user IDs provided' });
+    if (!days || isNaN(days)) return res.status(400).json({ error: 'Valid number of days is required' });
+
+    const ms = parseInt(days) * 24 * 60 * 60 * 1000;
+    const users = await User.find({ _id: { $in: ids } });
+    
+    // SCALABILITY UPGRADE: Using bulkWrite for high-volume updates
+    const bulkOps = users.map(user => {
+       const currentValidUntil = (user.subscription && user.subscription.validUntil) ? new Date(user.subscription.validUntil) : new Date();
+       const baseDate = currentValidUntil > new Date() ? currentValidUntil : new Date();
+       const newDate = new Date(baseDate.getTime() + ms);
+       
+       return {
+         updateOne: {
+           filter: { _id: user._id },
+           update: { $set: { 'subscription.validUntil': newDate } }
+         }
+       };
+    });
+
+    if (bulkOps.length > 0) {
+      await User.bulkWrite(bulkOps);
+    }
+
+    logActivity('BULK_EXTEND', `Extended validity for ${ids.length} users by ${days} days`);
+    res.json({ success: true, message: `Successfully extended access for ${ids.length} students.` });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // GET /api/admin/sections — List unique question sections
 router.get('/sections', adminAuth, async (req, res) => {
   try {
@@ -312,7 +345,7 @@ router.get('/sections', adminAuth, async (req, res) => {
 // GET /api/admin/questions — List questions with filters & pagination
 router.get('/questions', adminAuth, async (req, res) => {
   try {
-    const { topic, search, topics, page = 1, limit = 50 } = req.query;
+    const { topic, search, topics, category, page = 1, limit = 50 } = req.query;
     let query = {};
     
     // 1. Search Filter (Global) - Prioritize search over topic filters
@@ -322,8 +355,11 @@ router.get('/questions', adminAuth, async (req, res) => {
         { s: { $regex: search, $options: 'i' } },
         { 'q.text': { $regex: search, $options: 'i' } }
       ];
+    } else if (category && category !== 'All') {
+      // 2. Section/Category Filter (Elite Optimization)
+      query.section = category;
     } else {
-    // 2. Topic/Category Filter (Only apply if NOT searching globally)
+    // 3. Topic/Category Filter (Only apply if NOT searching globally)
     const getTopicQueryMatch = (tStr) => {
       const map = {
         'Number System, LCM & HCF': ['Numbers', 'Problems on Numbers', 'Problems on H.C.F and L.C.M', 'Number System, LCM & HCF'],
@@ -393,7 +429,36 @@ router.get('/questions', adminAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-const { CATEGORY_MAP, getMasterMapping } = require('../config/mappings');
+const { CATEGORY_MAP, getMasterMapping, getSectionForTopic } = require('../config/mappings');
+
+// POST /api/admin/question — Create a single question
+router.post('/question', adminAuth, async (req, res) => {
+  try {
+    const { s, q, o, a, explanation } = req.body;
+    if (!s || !q || !o || a === undefined) return res.status(400).json({ error: 'Missing required fields' });
+    
+    const section = getSectionForTopic(s) || 'Other';
+    const question = await Question.create({ s, q, o, a, explanation, section });
+    
+    logActivity('CREATE_QUESTION', `Added question to topic: ${s}`);
+    res.json(question);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// PUT /api/admin/question/:id — Update a single question
+router.put('/question/:id', adminAuth, async (req, res) => {
+  try {
+    const { s, q, o, a, explanation } = req.body;
+    const update = { s, q, o, a, explanation };
+    if (s) update.section = getSectionForTopic(s) || 'Other';
+
+    const question = await Question.findByIdAndUpdate(req.params.id, update, { new: true });
+    if (!question) return res.status(404).json({ error: 'Question not found' });
+
+    logActivity('UPDATE_QUESTION', `Updated question ID: ${req.params.id}`);
+    res.json(question);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 
 // POST /api/admin/questions/recategorize — Sync/Link questions to subtopics
 router.post('/questions/recategorize', adminAuth, async (req, res) => {
@@ -610,15 +675,53 @@ router.post('/questions/purge-all-duplicates', adminAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// GET /api/admin/stats/questions — Detailed breakdown
+// GET /api/admin/stats/questions — Detailed breakdown (Categories + Topics)
 router.get('/stats/questions', adminAuth, async (req, res) => {
   try {
-    const grouped = await Question.aggregate([
-      { $group: { _id: '$section', count: { $sum: 1 } } }
+    const [sectionData, topicData] = await Promise.all([
+      Question.aggregate([{ $group: { _id: '$section', count: { $sum: 1 } } }]),
+      Question.aggregate([{ $group: { _id: '$s', count: { $sum: 1 } } }])
     ]);
+    
     const sections = {};
-    grouped.forEach(g => { if (g._id) sections[g._id] = g.count; });
-    res.json({ sections });
+    sectionData.forEach(g => { if (g._id) sections[g._id] = g.count; });
+    
+    res.json({ sections, topics: topicData });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET /api/admin/subscription-stats — Centralized KPI dashboard for the Hub
+router.get('/subscription-stats', adminAuth, async (req, res) => {
+  try {
+    const now = new Date();
+    const next30Days = new Date();
+    next30Days.setDate(now.getDate() + 30);
+
+    const [
+      activePremium,
+      expiringSoon,
+      planDistribution
+    ] = await Promise.all([
+      User.countDocuments({ plan: { $in: ['basic', 'pro', 'premium', 'lifetime'] }, status: 'active' }),
+      User.countDocuments({ 'subscription.validUntil': { $gte: now, $lte: next30Days } }),
+      User.aggregate([
+        { $group: { _id: "$plan", count: { $sum: 1 } } }
+      ])
+    ]);
+
+    const dist = { free: 0, basic: 0, pro: 0, premium: 0, lifetime: 0 };
+    planDistribution.forEach(p => { if (p._id) dist[p._id] = p.count; });
+
+    res.json({
+      activePremium,
+      expiringSoon,
+      distribution: dist,
+      totalRevenueEstimation: planDistribution.reduce((acc, curr) => {
+         // Mock revenue calculation based on predefined plan values
+         const prices = { basic: 499, pro: 999, premium: 1999, lifetime: 4999, free: 0 };
+         return acc + (prices[curr._id] || 0) * curr.count;
+      }, 0)
+    });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -751,38 +854,56 @@ router.get('/offers', adminAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// POST /api/admin/offers — Create new offer
+// POST /api/admin/offers — Create new plan template
 router.post('/offers', adminAuth, async (req, res) => {
   try {
-    const { title, priceOriginal, priceOffer, discount } = req.body;
+    const { title, priceOriginal, priceOffer, discount, tierLevel, features, durationDays, maxRedemptions, targetSegment, active } = req.body;
     if (!title) return res.status(400).json({ error: 'Title is required' });
-    const offer = new Offer({ title, priceOriginal, priceOffer, discount });
+    
+    const offer = new Offer({ 
+      title, priceOriginal, priceOffer, discount, 
+      tierLevel, features, durationDays, 
+      maxRedemptions, targetSegment, active 
+    });
+    
     await offer.save();
-    logActivity('OFFER', `Created offer: ${title}`);
+    logActivity('OFFER_CREATE', `Created Plan: ${title} (${tierLevel})`);
     res.json(offer);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// POST /api/admin/offers/:id/toggle — Activate/Deactivate
-router.post('/offers/:id/toggle', adminAuth, async (req, res) => {
+// PUT /api/admin/offers/:id — Update existing plan template
+router.put('/offers/:id', adminAuth, async (req, res) => {
   try {
-    const offer = await Offer.findById(req.params.id);
+    const update = req.body;
+    const offer = await Offer.findByIdAndUpdate(req.params.id, update, { new: true });
     if (!offer) return res.status(404).json({ error: 'Offer not found' });
-    if (!offer.active) await Offer.updateMany({ _id: { $ne: offer._id } }, { active: false });
-    offer.active = !offer.active;
-    await offer.save();
-    logActivity('OFFER', `${offer.active ? 'Activated' : 'Deactivated'} offer: ${offer.title}`);
+    
+    logActivity('OFFER_UPDATE', `Updated Plan: ${offer.title}`);
     res.json(offer);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// POST /api/admin/offers/:id/delete — Delete offer
-router.post('/offers/:id/delete', adminAuth, async (req, res) => {
+// Support routes already exist further down.
+
+// PUT /api/admin/offers/bulk — Batch update for plans
+router.put('/offers/bulk', adminAuth, async (req, res) => {
   try {
-    const offer = await Offer.findByIdAndDelete(req.params.id);
-    if (!offer) return res.status(404).json({ error: 'Offer not found' });
-    logActivity('OFFER', `Deleted offer: ${offer.title}`);
-    res.json({ success: true, message: 'Offer deleted successfully' });
+    const { ids, action } = req.body;
+    if (!ids || !Array.isArray(ids) || ids.length === 0) return res.status(400).json({ error: 'No offer IDs provided' });
+
+    if (action === 'delete') {
+      await Offer.deleteMany({ _id: { $in: ids } });
+      logActivity('OFFER_BULK_DELETE', `Bulk Deleted ${ids.length} plans`);
+    } else if (action === 'activate' || action === 'deactivate') {
+      const active = action === 'activate';
+      await Offer.updateMany({ _id: { $in: ids } }, { $set: { active } });
+      logActivity('OFFER_BULK_TOGGLE', `Bulk ${active ? 'Activated' : 'Deactivated'} ${ids.length} plans`);
+    } else {
+      return res.status(400).json({ error: 'Invalid action' });
+    }
+
+    res.json({ success: true, message: `Batch ${action} completed for ${ids.length} plans.` });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -922,6 +1043,24 @@ router.put('/reviews/:id', adminAuth, async (req, res) => {
     const { approved } = req.body;
     const review = await Review.findByIdAndUpdate(req.params.id, { approved }, { new: true });
     res.json({ success: true, review });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/admin/reviews — Create manual review
+router.post('/reviews', adminAuth, async (req, res) => {
+  try {
+    const { name, userCode, rating, comment, plan, approved = true } = req.body;
+    if (!name || !rating || !comment) return res.status(400).json({ error: 'All fields required' });
+    const review = await Review.create({ 
+      name, 
+      userCode: userCode || "Public User",
+      text: comment, 
+      rating, 
+      approved,
+      plan: plan || 'Website Visitor'
+    });
+    logActivity('CREATE_REVIEW', `Manually added review for ${name} (${userCode || "Public"})`);
+    res.json(review);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -1109,6 +1248,191 @@ router.post('/gamified/:id/toggle', adminAuth, async (req, res) => {
     await offer.save();
     logActivity('TOGGLE_GAMIFIED', `${offer.active ? 'Enabled' : 'Disabled'} ${offer.gameType}`);
     res.json({ success: true, active: offer.active });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ═══════════════ OFFERS & CAMPAIGNS (NEW) ═══════════════
+
+// GET /api/admin/offers
+router.get('/offers', adminAuth, async (req, res) => {
+  try {
+    const offers = await Offer.find().sort({ createdAt: -1 });
+    res.json(offers);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/admin/offers
+router.post('/offers', adminAuth, async (req, res) => {
+  try {
+    const offer = await Offer.create(req.body);
+    logActivity('CREATE_OFFER', `Launched offer: ${offer.title}`);
+    res.json(offer);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// PUT /api/admin/offers/:id — Update existing plan
+router.put('/offers/:id', adminAuth, async (req, res) => {
+  try {
+    const offer = await Offer.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    if (!offer) return res.status(404).json({ error: 'Offer not found' });
+    logActivity('UPDATE_OFFER', `Updated offer: ${offer.title}`);
+    res.json(offer);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/admin/offers/:id/toggle
+router.post('/offers/:id/toggle', adminAuth, async (req, res) => {
+  try {
+    const offer = await Offer.findById(req.params.id);
+    if (!offer) return res.status(404).json({ error: 'Offer not found' });
+    offer.active = !offer.active;
+    await offer.save();
+    logActivity('TOGGLE_OFFER', `${offer.active ? 'Enabled' : 'Disabled'} offer: ${offer.title}`);
+    res.json({ success: true, active: offer.active });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/admin/offers/:id/delete
+router.post('/offers/:id/delete', adminAuth, async (req, res) => {
+  try {
+    const offer = await Offer.findByIdAndDelete(req.params.id);
+    logActivity('DELETE_OFFER', `Deleted offer: ${offer?.title}`);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ═══════════════ PROMO COUPONS ═══════════════
+
+// GET /api/admin/coupons — List all coupons
+router.get('/coupons', adminAuth, async (req, res) => {
+  try {
+    const coupons = await Coupon.find().sort({ createdAt: -1 });
+    res.json(coupons);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/admin/coupons — Create new coupon
+router.post('/coupons', adminAuth, async (req, res) => {
+  try {
+    const coupon = await Coupon.create(req.body);
+    logActivity('CREATE_COUPON', `Created coupon: ${coupon.code}`);
+    res.json(coupon);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// PUT /api/admin/coupons/:id — Update coupon
+router.put('/coupons/:id', adminAuth, async (req, res) => {
+  try {
+    const coupon = await Coupon.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    logActivity('UPDATE_COUPON', `Updated coupon: ${coupon?.code}`);
+    res.json(coupon);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/admin/coupons/:id/toggle — Toggle coupon status
+router.post('/coupons/:id/toggle', adminAuth, async (req, res) => {
+  try {
+    const coupon = await Coupon.findById(req.params.id);
+    if (!coupon) return res.status(404).json({ error: 'Coupon not found' });
+    coupon.active = !coupon.active;
+    await coupon.save();
+    logActivity('TOGGLE_COUPON', `${coupon.active ? 'Enabled' : 'Disabled'} coupon: ${coupon.code}`);
+    res.json({ success: true, active: coupon.active });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// DELETE /api/admin/coupons/:id — Delete coupon
+router.delete('/coupons/:id', adminAuth, async (req, res) => {
+  try {
+    const coupon = await Coupon.findByIdAndDelete(req.params.id);
+    logActivity('DELETE_COUPON', `Deleted coupon: ${coupon?.code}`);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ═══════════════ REWARDS LOGIC (GAMIFIED) ═══════════════
+
+// GET /api/admin/gamified — List all game configs
+router.get('/gamified', adminAuth, async (req, res) => {
+  try {
+    const configs = await GamifiedOffer.find().sort({ createdAt: -1 });
+    res.json(configs);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/admin/gamified — Create/Update game config
+router.post('/gamified', adminAuth, async (req, res) => {
+  try {
+    const config = await GamifiedOffer.create(req.body);
+    logActivity('CREATE_GAMIFIED', `Created game config: ${config.title}`);
+    res.json(config);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// PUT /api/admin/gamified/:id — Update game config
+router.put('/gamified/:id', adminAuth, async (req, res) => {
+  try {
+    const config = await GamifiedOffer.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    logActivity('UPDATE_GAMIFIED', `Updated game: ${config?.title}`);
+    res.json(config);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/admin/gamified/:id/toggle — Toggle game status
+router.post('/gamified/:id/toggle', adminAuth, async (req, res) => {
+  try {
+    const config = await GamifiedOffer.findById(req.params.id);
+    if (!config) return res.status(404).json({ error: 'Config not found' });
+    config.active = !config.active;
+    await config.save();
+    logActivity('TOGGLE_GAMIFIED', `${config.active ? 'Enabled' : 'Disabled'} game: ${config.title}`);
+    res.json({ success: true, active: config.active });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// DELETE /api/admin/gamified/:id — Delete config
+router.delete('/gamified/:id', adminAuth, async (req, res) => {
+  try {
+    const config = await GamifiedOffer.findByIdAndDelete(req.params.id);
+    logActivity('DELETE_GAMIFIED', `Deleted game: ${config?.title}`);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ═══════════════ SUPPORT & ISSUES ═══════════════
+
+// GET /api/admin/issues
+router.get('/issues', adminAuth, async (req, res) => {
+  try {
+    const issues = await Issue.find().sort({ createdAt: -1 });
+    res.json(issues);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/admin/issues/:id/resolve
+router.post('/issues/:id/resolve', adminAuth, async (req, res) => {
+  try {
+    const issue = await Issue.findByIdAndUpdate(req.params.id, { status: 'resolved' }, { new: true });
+    logActivity('RESOLVE_ISSUE', `Resolved ticket: ${issue?.userCode}`);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/admin/offers/seed — One-time seeding of 5 standard plans
+router.post('/offers/seed', adminAuth, async (req, res) => {
+  try {
+    const standardPlans = [
+      { title: "FREE TASTER", tierLevel: "FREE", priceOriginal: 0, priceOffer: 0, discount: "100% OFF", durationDays: 7, active: true, features: ["10 Basic Mock Exams", "Standard Leaderboard View", "Community Q&A Access", "Email Support (24h Response)"] },
+      { title: "ESSENTIAL PASS", tierLevel: "BASIC", priceOriginal: 99, priceOffer: 49, discount: "50% OFF", durationDays: 15, active: true, features: ["30 Full Mock Exams", "Personal Performance Stats", "Section-wise Analytics", "All Aptitude & Reasoning PYQs"] },
+      { title: "PRO SUCCESS BUNDLE", tierLevel: "PRO", priceOriginal: 399, priceOffer: 149, discount: "62% OFF", durationDays: 30, active: true, features: ["Full 310+ PYQ Database", "Real Exam UI Simulator", "Predictive Score Modeling", "Unlimited Sectional Retakes", "Live Global Leaderboard"] },
+      { title: "ELITE CAREER PACK", tierLevel: "PREMIUM", priceOriginal: 699, priceOffer: 299, discount: "57% OFF", durationDays: 90, active: true, features: ["Everything in PRO Plan", "Exclusive Digital/Ninja Content", "One-on-One Priority Email", "Advanced DSA Mastery Module", "Downloadable Prep PDF Vault"] },
+      { title: "LIFETIME MASTERY", tierLevel: "LIFETIME", priceOriginal: 2499, priceOffer: 999, discount: "60% OFF", durationDays: 9999, active: true, features: ["Permanent Portal Access", "All Future Updates Free", "Lifetime Community Badge", "Priority Beta Access", "Direct Desktop App Access"] }
+    ];
+
+    await Offer.deleteMany({});
+    await Offer.insertMany(standardPlans);
+    logActivity('OFFER_SEED', "Seeded 5 Standard Subscription Plans");
+    res.json({ success: true, message: "Standard Plans Seeded! 🚀" });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
