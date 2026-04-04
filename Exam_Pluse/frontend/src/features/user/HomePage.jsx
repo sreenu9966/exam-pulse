@@ -23,6 +23,29 @@ const Skeleton = ({ width, height, style }) => (
   <div className="skeleton-box loading-shimmer" style={{ width, height, ...style }} />
 );
 
+// 🔒 LOCKED FEATURE OVERLAY
+const LockedOverlay = ({ featureName, icon = "🔓", onUpgrade }) => (
+  <div style={{ 
+    position: 'absolute', inset: 0, zIndex: 1000, 
+    background: 'rgba(11, 18, 33, 0.85)', backdropFilter: 'blur(12px)',
+    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+    textAlign: 'center', padding: '40px', borderRadius: 'inherit'
+  }}>
+    <div style={{ fontSize: '64px', marginBottom: '24px', animation: 'bounce 2s infinite' }}>{icon}</div>
+    <h3 style={{ fontSize: '24px', fontWeight: 900, color: '#fff', marginBottom: '12px' }}>{featureName} is Locked</h3>
+    <p style={{ color: 'rgba(255,255,255,0.6)', maxWidth: '320px', marginBottom: '32px', fontSize: '15px' }}>
+      This exclusive feature is part of our Premium tier. Upgrade now to unlock full access and accelerate your preparation.
+    </p>
+    <button onClick={onUpgrade} style={{ 
+      background: 'var(--accent)', color: '#000', border: 'none', 
+      padding: '14px 32px', borderRadius: '14px', fontWeight: 900, 
+      fontSize: '15px', cursor: 'pointer', boxShadow: '0 10px 25px rgba(0, 245, 212, 0.3)' 
+    }}>
+      Go Premium Now →
+    </button>
+  </div>
+);
+
 // 🚀 MEMOIZED PORTALS FOR MAXIMUM PERFORMANCE
 const DashboardPortal = React.memo(({ activeSide, loading, categoryStats, advancedChartData, highestScore, averageScore, trendData, submissions, overallAccuracy, chartPeriod, setChartPeriod, setActiveSide, user, disabledTopics = [], setActiveTopic }) => {
   const [copied, setCopied] = React.useState(false);
@@ -124,7 +147,8 @@ const DashboardPortal = React.memo(({ activeSide, loading, categoryStats, advanc
               </div>
             </div>
           </div>
-          <div style={{ background: 'rgba(30, 41, 59, 0.5)', border: '1px solid #334155', borderRadius: '12px', padding: '16px', backdropFilter: 'blur(10px)' }}>
+          <div style={{ background: 'rgba(30, 41, 59, 0.5)', border: '1px solid #334155', borderRadius: '12px', padding: '16px', backdropFilter: 'blur(10px)', position: 'relative' }}>
+            {user?.featureAccess?.aiInsights === false && <LockedOverlay featureName="AI Subject Analysis" icon="🧠" onUpgrade={() => setActiveSide('upgrade')} />}
             <h3 style={{ fontSize: '14px', color: '#cbd5e1', fontWeight: 600, margin: '0 0 16px 0', letterSpacing: '0.5px' }}>Subject Mastery (vs Cohort)</h3>
             <div style={{ height: '220px' }}>
               <ResponsiveContainer width="100%" height="100%">
@@ -145,7 +169,8 @@ const DashboardPortal = React.memo(({ activeSide, loading, categoryStats, advanc
               </ResponsiveContainer>
             </div>
           </div>
-          <div style={{ background: 'rgba(30, 41, 59, 0.5)', border: '1px solid #334155', borderRadius: '12px', padding: '16px', backdropFilter: 'blur(10px)' }}>
+          <div style={{ background: 'rgba(30, 41, 59, 0.5)', border: '1px solid #334155', borderRadius: '12px', padding: '16px', backdropFilter: 'blur(10px)', position: 'relative' }}>
+            {user?.featureAccess?.aiInsights === false && <LockedOverlay featureName="Activity Tracking" icon="⚡" onUpgrade={() => setActiveSide('upgrade')} />}
             <h3 style={{ fontSize: '14px', color: '#cbd5e1', fontWeight: 600, margin: '0 0 16px 0', letterSpacing: '0.5px' }}>Recent Activity (Mins)</h3>
             <div style={{ height: '160px' }}>
               <ResponsiveContainer width="100%" height="100%">
@@ -478,38 +503,63 @@ const UpgradePortal = React.memo(({ activeSide, token, showToast, refreshUser, u
         <p style={{ color: 'var(--muted)', fontSize: '18px' }}>Choose the plan that fits your preparation journey.</p>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '32px', marginBottom: '48px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '32px', marginBottom: '48px' }}>
         {offers.length === 0 ? (
-          <div style={{ gridColumn: 'span 2', padding: '40px', textAlign: 'center', color: 'var(--muted)' }}>Loading active plans...</div>
+          <div style={{ gridColumn: 'span 3', padding: '60px', textAlign: 'center', color: 'var(--muted)', background: 'var(--glass)', borderRadius: '24px' }}>
+            <div style={{ fontSize: '40px', marginBottom: '16px' }}>⌛</div>
+            Loading elite prepare-to-succeed plans...
+          </div>
         ) : offers.map((offer, idx) => {
-          const isPro = offer.tierLevel === 'PRO' || offer.tierLevel === 'PREMIUM';
-          const isCurrent = user?.plan?.toLowerCase() === offer.tierLevel?.toLowerCase();
+          // 🎨 DYNAMIC TIER STYLES
+          const tierStyles = {
+            'FREE': { main: 'var(--accent)', bg: 'rgba(0, 245, 212, 0.05)', icon: '🌱', tag: 'TEASER' },
+            'BASIC': { main: '#3b82f6', bg: 'rgba(59, 130, 246, 0.05)', icon: '⚡', tag: 'ESSENTIAL' },
+            'PRO': { main: '#8b5cf6', bg: 'rgba(139, 92, 246, 0.05)', icon: '🔥', tag: 'SUCCESS' },
+            'PREMIUM': { main: '#f59e0b', bg: 'rgba(245, 158, 11, 0.05)', icon: '👑', tag: 'ELITE' },
+            'LIFETIME': { main: '#ec4899', bg: 'rgba(236, 72, 153, 0.05)', icon: '💎', tag: 'ULTIMATE' }
+          };
+          const style = tierStyles[offer.tierLevel] || tierStyles['PRO'];
+          const isCurrent = user?.plan?.toUpperCase() === offer.tierLevel?.toUpperCase();
           
           return (
             <div key={offer._id || idx} className="cyber-card" style={{ 
-              background: isPro ? 'rgba(0, 245, 212, 0.05)' : 'rgba(30, 41, 59, 0.4)', 
-              border: isPro ? '2px solid var(--accent)' : '1px solid var(--border)', 
-              borderRadius: '24px', padding: '40px', position: 'relative',
-              boxShadow: isPro ? '0 0 30px rgba(0, 245, 212, 0.1)' : 'none'
+              background: style.bg, 
+              border: `1px solid ${style.main}40`, 
+              borderRadius: '28px', padding: '40px', position: 'relative',
+              boxShadow: isCurrent ? `0 0 40px ${style.main}20` : 'none',
+              transition: 'all 0.3s',
+              transform: isCurrent ? 'scale(1.02)' : 'none'
             }}>
-              {isPro && <div style={{ position: 'absolute', top: '20px', right: '20px', background: 'var(--accent)', color: '#000', padding: '4px 12px', borderRadius: '12px', fontSize: '12px', fontWeight: 800 }}>{offer.discount || 'BEST VALUE'}</div>}
-              <h3 style={{ color: '#fff', fontSize: '24px', fontWeight: 800, marginBottom: '8px' }}>{offer.title}</h3>
-              <div style={{ fontSize: '32px', fontWeight: 900, marginBottom: '24px', color: isPro ? 'var(--accent)' : 'var(--muted)' }}>
-                ₹{offer.priceOffer} <span style={{ fontSize: '14px', fontWeight: 400, color: '#fff' }}>/ {offer.durationDays} days</span>
+              {isCurrent && <div style={{ position: 'absolute', top: '24px', right: '24px', background: style.main, color: '#000', padding: '6px 14px', borderRadius: '12px', fontSize: '11px', fontWeight: 900 }}>CURRENT PLAN</div>}
+              {!isCurrent && offer.discount && <div style={{ position: 'absolute', top: '24px', right: '24px', color: style.main, fontSize: '12px', fontWeight: 800 }}>{offer.discount}</div>}
+              
+              <div style={{ fontSize: '32px', marginBottom: '16px' }}>{style.icon}</div>
+              <h3 style={{ color: '#fff', fontSize: '22px', fontWeight: 900, marginBottom: '8px', letterSpacing: '-0.5px' }}>{offer.title}</h3>
+              <div style={{ fontSize: '11px', color: style.main, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1.5px', marginBottom: '24px' }}>{style.tag} ACCESS</div>
+              
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px', marginBottom: '32px' }}>
+                <span style={{ fontSize: '36px', fontWeight: 900, color: '#fff' }}>₹{offer.priceOffer}</span>
+                <span style={{ fontSize: '14px', color: 'var(--muted)' }}>/ {offer.durationDays === 9999 ? 'Lifetime' : `${offer.durationDays} days`}</span>
               </div>
-              <ul style={{ color: '#fff', fontSize: '14px', display: 'flex', flexDirection: 'column', gap: '12px', padding: 0, listStyle: 'none', marginBottom: '32px' }}>
+
+              <div style={{ height: '1px', background: 'rgba(255,255,255,0.05)', marginBottom: '32px' }} />
+
+              <ul style={{ color: 'rgba(255,255,255,0.7)', fontSize: '13px', display: 'flex', flexDirection: 'column', gap: '16px', padding: 0, listStyle: 'none', marginBottom: '40px', minHeight: '180px' }}>
                 {offer.features?.map((f, i) => (
-                  <li key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <span style={{ color: isPro ? 'var(--accent)' : 'var(--muted)' }}>✔</span> {f}
+                  <li key={i} style={{ display: 'flex', gap: '12px', lineHeight: 1.4 }}>
+                    <span style={{ color: style.main, fontWeight: 900 }}>✓</span> {f}
                   </li>
                 ))}
               </ul>
+
               {isCurrent ? (
-                 <div style={{ background: 'rgba(0,245,212,0.2)', color: 'var(--accent)', padding: '12px', borderRadius: '12px', textAlign: 'center', fontWeight: 800 }}>CURRENT PLAN 👑</div>
+                 <div style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--muted)', padding: '16px', borderRadius: '16px', textAlign: 'center', fontWeight: 800, fontSize: '13px', border: '1px solid rgba(255,255,255,0.1)' }}>Plan Active 🎖️</div>
               ) : (
                  <button 
                    onClick={() => window.open('/?view=pricing', '_blank')}
-                   style={{ width: '100%', background: isPro ? 'var(--accent)' : 'rgba(255,255,255,0.1)', color: isPro ? '#000' : '#fff', padding: '14px', borderRadius: '12px', border: 'none', fontWeight: 800, cursor: 'pointer' }}
+                   style={{ width: '100%', background: style.main, color: '#000', padding: '16px', borderRadius: '16px', border: 'none', fontWeight: 900, cursor: 'pointer', transition: 'all 0.2s', fontSize: '14px', boxShadow: `0 10px 20px ${style.main}20` }}
+                   onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
+                   onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
                  >
                    Upgrade for ₹{offer.priceOffer} →
                  </button>
@@ -720,7 +770,8 @@ const LeaderboardPortal = React.memo(({ activeSide, leaderboardData, loading }) 
   );
 
   return (
-    <div style={{ animation: 'fadeIn 0.5s', maxWidth: '900px', margin: '0 auto' }}>
+    <div style={{ animation: 'fadeIn 0.5s', maxWidth: '900px', margin: '0 auto', position: 'relative', minHeight: '400px' }}>
+      {user?.featureAccess?.leaderboardRank === false && <LockedOverlay featureName="Global Rankings" icon="🥈" onUpgrade={() => setActiveSide('upgrade')} />}
       <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '40px' }}>
         <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px' }}>🏆</div>
         <div>
@@ -981,6 +1032,19 @@ const handleStartModule = async (modIndex) => {
   const isPractice = activeSide === 'practice';
   const mode = isPractice ? 'practice' : 'final';
 
+  // 🛡️ ADMIN'S PALM: Practice Module Limit Check
+  if (isPractice && user) {
+    const maxModules = user.featureAccess?.maxPracticeModules ?? 5;
+    if (modIndex > maxModules) {
+      return setModal({
+        show: true,
+        type: 'alert',
+        title: 'Module Locked',
+        message: `Strategic Lock: This module (Module ${modIndex}) is locked based on your current plan. Free Taster users can access the first 5 modules. Please upgrade to Elite/Pro for unlimited practice access.`
+      });
+    }
+  }
+
   if (user && !isPractice) {
     const sub = user.subscription || { planType: 'attempts', maxAttempts: 2 };
     const isUnlimitedForThisTopic = sub.unlimitedExams && sub.unlimitedExams.includes(activeTopic);
@@ -1004,6 +1068,17 @@ const handleStartModule = async (modIndex) => {
 
 const handleStartExam = (examKey) => {
   if (user) {
+    // 🛡️ ADMIN'S PALM: Granular Exam Authorization Check
+    const allowedExams = user.featureAccess?.allowedExams || [];
+    if (!allowedExams.includes(examKey) && user.plan === 'free') {
+      return setModal({
+        show: true,
+        type: 'alert',
+        title: 'Exam Not Authorized',
+        message: 'This specific exam has not been authorized for your current trial account. Please contact your coordinator or upgrade to a premium plan to unlock full access.'
+      });
+    }
+
     const sub = user.subscription || { planType: 'attempts', maxAttempts: 2 };
     const isUnlimited = sub.unlimitedExams && sub.unlimitedExams.includes(examKey);
 
@@ -1067,17 +1142,20 @@ return (
           {[
             { id: 'home', icon: '🏠', title: 'Home' },
             { id: 'dashboard', icon: '📊', title: 'Dashboard' },
-            { id: 'rankings', icon: '🏆', title: 'Hall of Fame' },
-            { id: 'analytics', icon: '📈', title: 'Analytics' },
-            { id: 'topic-mastery', icon: '🎯', title: 'Topic Mastery' },
-            { id: 'exams', icon: '🎓', title: 'Exams' },
-            { id: 'practice', icon: '🛠️', title: 'Practice Mode' },
+            { id: 'rankings', icon: '🏆', title: 'Hall of Fame', toggle: 'leaderboardRank' },
+            { id: 'analytics', icon: '📈', title: 'Analytics', toggle: 'aiInsights' },
+            { id: 'topic-mastery', icon: '🎯', title: 'Topic Mastery', toggle: 'sectionalTests' },
+            { id: 'exams', icon: '🎓', title: 'Exams', toggle: 'fullMocks' },
+            { id: 'practice', icon: '🛠️', title: 'Practice Mode', toggle: 'sectionalTests' },
             { id: 'wall-of-fame', icon: '🌟', title: 'Success Stories' },
             { id: 'history', icon: '📜', title: 'Exam History' },
-            { id: 'rewards', icon: '🎁', title: 'Daily Rewards' },
+            { id: 'rewards', icon: '🎁', title: 'Daily Rewards', toggle: 'supportHub' },
             { id: 'subscriptions', icon: '💳', title: 'Subscriptions' },
             { id: 'upgrade', icon: '👑', title: 'Go Premium' }
-          ].map((item, idx) => (
+          ].filter(item => {
+            if (!item.toggle || !user || !user.featureAccess) return true;
+            return user.featureAccess[item.toggle] !== false;
+          }).map((item, idx) => (
             <div
               key={item.id}
               onClick={() => setActiveSide(item.id)}
@@ -1239,12 +1317,25 @@ return (
                         </div>
 
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '16px' }}>
-                          {Array.from({ length: Math.ceil(moduleCount / 25) || 1 }).map((_, i) => (
-                            <div key={i} onClick={() => handleStartModule(i + 1)} style={{ background: 'rgba(0,0,0,0.4)', border: isCompleted(i + 1) ? '1px solid var(--accent)' : '1px solid var(--border2)', padding: '20px', borderRadius: '12px', textAlign: 'center', cursor: 'pointer' }}>
-                              <div style={{ color: '#fff', fontWeight: 800, fontSize: '14px' }}>Module {i + 1}</div>
-                              {isCompleted(i + 1) && <div style={{ fontSize: '20px', marginTop: '8px' }}>✅</div>}
-                            </div>
-                          ))}
+                          {Array.from({ length: Math.ceil(moduleCount / 25) || 1 }).map((_, i) => {
+                            const modIdx = i + 1;
+                            const isLocked = user && (user.featureAccess?.maxPracticeModules ?? 5) < modIdx;
+                            return (
+                              <div key={i} onClick={() => handleStartModule(modIdx)} style={{ 
+                                background: isLocked ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.4)', 
+                                border: isLocked ? '1px solid var(--border)' : (isCompleted(modIdx) ? '1px solid var(--accent)' : '1px solid var(--border2)'), 
+                                padding: '20px', borderRadius: '12px', textAlign: 'center', cursor: 'pointer',
+                                opacity: isLocked ? 0.6 : 1, filter: isLocked ? 'grayscale(1)' : 'none'
+                              }}>
+                                <div style={{ color: '#fff', fontWeight: 800, fontSize: '14px', marginBottom: '8px' }}>Module {modIdx}</div>
+                                {isLocked ? (
+                                  <div style={{ fontSize: '18px' }}>🔒</div>
+                                ) : (
+                                  isCompleted(modIdx) && <div style={{ fontSize: '20px' }}>✅</div>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     ) : (

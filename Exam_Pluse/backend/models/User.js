@@ -62,6 +62,19 @@ const userSchema = new mongoose.Schema({
     topic: String,
     completedModules: [Number]
   }],
+  featureAccess: {
+    fullMocks: { type: Boolean, default: false },
+    allowedExams: { type: [String], default: [] }, // Array of examKeys
+    pyqDatabase: { type: Boolean, default: false },
+    allowedPYQs: { type: [String], default: [] }, // Array of categories
+    aiInsights: { type: Boolean, default: false },
+    allowedAIModules: { type: [String], default: ['radar', 'trends', 'topicPerf', 'timeSpent'] }, 
+    leaderboardRank: { type: Boolean, default: false },
+    sectionalTests: { type: Boolean, default: false },
+    allowedTopics: { type: [String], default: [] }, // Array of topic names
+    maxPracticeModules: { type: Number, default: 5 }, // Granular module limit for Practice Mode
+    supportHub: { type: Boolean, default: false }
+  },
   createdAt: { type: Date, default: Date.now }
 });
 

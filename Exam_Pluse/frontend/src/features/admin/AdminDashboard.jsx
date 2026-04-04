@@ -383,10 +383,35 @@ export default function AdminDashboard() {
   const [editOffer, setEditOffer] = useState(null);
   const [newOfferModal, setNewOfferModal] = useState(false);
   const [editUser, setEditUser] = useState(null);
+  const [newUser, setNewUser] = useState(null);
+  const FEATURE_TOGGLES = [
+    { key: 'fullMocks', label: 'Full Mock Exams', icon: '📝' },
+    { key: 'pyqDatabase', label: 'PYQ Database', icon: '📚' },
+    { key: 'aiInsights', label: 'AI Performance Insights', icon: '🤖' },
+    { key: 'leaderboardRank', label: 'Global Leaderboard', icon: '🏆' },
+    { key: 'sectionalTests', label: 'Sectional Practice', icon: '🧩' },
+    { key: 'supportHub', label: 'Priority Support', icon: '☎️' }
+  ];
   const [manualModal, setManualModal] = useState(null);
   const [rejectionModal, setRejectionModal] = useState(null);
   const [builderData, setBuilderData] = useState({ section: "", topic: "", qs: 5, mode: "auto" });
-  const [activeTab, setActiveTab] = useState("ALL");
+  const [activeTab, setActiveTab] = useState('Overview');
+  const [activeEntitlementTab, setActiveEntitlementTab] = useState('mocks');
+  const [entitlementMetadata, setEntitlementMetadata] = useState({ exams: [], topics: [], pyqs: [], aiModules: [] });
+  const [loadingEntitlements, setLoadingEntitlements] = useState(false);
+
+  const fetchEntitlementMetadata = async () => {
+    setLoadingEntitlements(true);
+    try {
+      const res = await axios.get(`${API}/admin/metadata/entitlements`, { headers: { Authorization: `Bearer ${token}` } });
+      setEntitlementMetadata(res.data);
+    } catch (e) { showToast("Failed to fetch entitlement metadata"); }
+    finally { setLoadingEntitlements(false); }
+  };
+
+  useEffect(() => {
+    if (editUser) fetchEntitlementMetadata();
+  }, [editUser]);
   const [activeSubTab, setActiveSubTab] = useState("plans");
   const [newCouponModal, setNewCouponModal] = useState(false);
   const [editCoupon, setEditCoupon] = useState(null);
@@ -481,8 +506,23 @@ export default function AdminDashboard() {
   const deleteReview = (id) => axios.delete(`${API}/admin/reviews/${id}`, config).then(() => fetchData());
 
   const handleUserSave = async () => {
-    try { await axios.put(`${API}/admin/user/${editUser.code}`, editUser, config); showToast("User updated ✅"); setEditUser(null); fetchData(); }
+    try { 
+      await axios.put(`${API}/admin/user/${editUser.code}`, editUser, config); 
+      showToast("User permissions updated ✅"); 
+      setEditUser(null); 
+      initData(); // Reload users to see plan/feature changes
+    }
     catch (e) { showToast("Failed to update user.", "error"); }
+  };
+
+  const handleCreateUser = async () => {
+    try {
+      if (!newUser.name || !newUser.email) return showToast("Name and Email required", "error");
+      await axios.post(`${API}/admin/user`, newUser, config);
+      showToast("Student onboarded successfully! 🚀");
+      setNewUser(null);
+      initData();
+    } catch (e) { showToast(e.response?.data?.error || "Onboarding failed", "error"); }
   };
 
   const handleSaveQuestion = async (qData) => {
@@ -962,7 +1002,7 @@ export default function AdminDashboard() {
                                     <div style={{ display: "flex", gap: "10px" }}>
                                       <button onClick={() => setEditOffer({ ...offer })} style={{ background: "rgba(255,255,255,0.06)", border: `1px solid ${T.border}`, color: T.textPrim, padding: "8px 12px", borderRadius: "8px", fontWeight: 700, cursor: "pointer", fontSize: "12px" }}>Edit</button>
                                       <button onClick={() => toggleOffer(offer._id)} style={{ background: offer.active ? "rgba(240,68,68,0.1)" : "rgba(16,185,129,0.1)", border: `1px solid ${offer.active ? T.red : T.green}40`, color: offer.active ? T.red : T.green, padding: "8px 12px", borderRadius: "8px", fontWeight: 700, cursor: "pointer", fontSize: "12px" }}>{offer.active ? "Pause" : "Live"}</button>
-                                      <button onClick={() => deleteOffer(offer._id)} style={{ background: "rgba(248,113,113,0.08)", border: `1px solid rgba(248,113,113,0.2)`, color: T.red, padding: "8px 12px", borderRadius: "8px", cursor: "pointer", fontWeight: 700, fontSize: "12px" }}>Delete</button>
+                                      <button onClick={() => deleteOffer(offer._id)} style={{ background: "rgba(248,113,113,0.08)", border: `1px solid rgba(248,113,113,0.2)`, color: T.red, padding: "8px 12px", borderRadius: "8px", fontWeight: 700, cursor: "pointer", fontSize: "12px" }}>Delete</button>
                                     </div>
                                   </td>
                                 </tr>
@@ -1088,16 +1128,22 @@ export default function AdminDashboard() {
                           {users.length} registered · {users.filter(u => u.plan !== 'free').length} on paid plans
                         </p>
                       </div>
-                      <div style={{ position: "relative" }}>
-                        <span style={{ position: "absolute", left: "13px", top: "50%", transform: "translateY(-50%)", fontSize: "15px" }}>🔍</span>
-                        <input
-                          placeholder="Search by name or code…"
-                          value={userSearch}
-                          onChange={e => { setUserSearch(e.target.value); setUserPage(1); }}
-                          style={{ background: T.surface, border: `1px solid ${T.border}`, color: T.textPrim, padding: "10px 18px 10px 40px", borderRadius: "12px", outline: "none", fontSize: "14px", width: "240px" }}
-                          onFocus={e => e.target.style.borderColor = `${T.accent}50`}
-                          onBlur={e => e.target.style.borderColor = T.border}
-                        />
+                      <div style={{ display: "flex", gap: "10px" }}>
+                        <div style={{ position: "relative" }}>
+                          <span style={{ position: "absolute", left: "13px", top: "50%", transform: "translateY(-50%)", fontSize: "15px" }}>🔍</span>
+                          <input
+                            placeholder="Search by name or code…"
+                            value={userSearch}
+                            onChange={e => { setUserSearch(e.target.value); setUserPage(1); }}
+                            style={{ background: T.surface, border: `1px solid ${T.border}`, color: T.textPrim, padding: "10px 18px 10px 40px", borderRadius: "12px", outline: "none", fontSize: "14px", width: "240px" }}
+                            onFocus={e => e.target.style.borderColor = `${T.accent}50`}
+                            onBlur={e => e.target.style.borderColor = T.border}
+                          />
+                        </div>
+                        <button onClick={() => setNewUser({ name: '', email: '', phone: '', plan: 'free', featureAccess: {} })}
+                          style={{ background: T.accent, color: "#000", border: "none", padding: "0 22px", borderRadius: "12px", fontWeight: 800, fontSize: "14px", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px" }}>
+                          <span style={{ fontSize: "20px" }}>+</span> Onboard Student
+                        </button>
                       </div>
                     </div>
 
@@ -1148,7 +1194,7 @@ export default function AdminDashboard() {
                                   </td>
                                   <td style={{ padding: "13px 22px" }}>
                                     <div style={{ display: "flex", gap: "7px" }}>
-                                      <button onClick={() => setEditUser({ ...user })} style={{ background: "rgba(255,255,255,0.07)", border: `1px solid rgba(255,255,255,0.14)`, color: T.textPrim, padding: "7px 15px", borderRadius: "8px", cursor: "pointer", fontWeight: 700, fontSize: "13px" }}>Edit</button>
+                                      <button onClick={() => setEditUser({ ...user, featureAccess: user.featureAccess || {} })} style={{ background: "rgba(255,255,255,0.07)", border: `1px solid rgba(255,255,255,0.14)`, color: T.textPrim, padding: "7px 15px", borderRadius: "8px", cursor: "pointer", fontWeight: 700, fontSize: "13px" }}>Edit</button>
                                       <button onClick={() => deleteUser(user.code)} style={{ background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.2)", color: T.red, padding: "7px 13px", borderRadius: "8px", cursor: "pointer", fontWeight: 700, fontSize: "13px" }}>Del</button>
                                     </div>
                                   </td>
@@ -1195,126 +1241,194 @@ export default function AdminDashboard() {
                   </div>
                 );
               })()}
-
             </div>
           )}
         </main>
       </div>
 
-      {/* ══ EXAM CONFIGURATOR ══ */}
-      <ExamConfigurator target={newExam || editExam} setTarget={newExam ? setNewExam : setEditExam} builderData={builderData} setBuilderData={setBuilderData} primarySectors={["Aptitude", "Reasoning", "Verbal", "Technical"]} categoryMap={categoryMap} topicsMap={topicsMap} norm={norm} fuzzyMatch={fuzzyMatch} handleSave={handleSaveExam} openManualSelection={openManualSelection} addAutoQs={addAutoQs} removeTopicFromConfig={removeTopicFromConfig} addTopicFromBuilder={addTopicFromBuilder} activeTab={activeTab} setActiveTab={setActiveTab} detailedStats={detailedStats} />
-      <ManualSelector manualModal={manualModal} setManualModal={setManualModal} toggleManualSelect={toggleManualSelect} target={newExam || editExam} fuzzyMatch={fuzzyMatch} />
- 
-      {/* ══ QUESTION EDITOR MODAL ══ */}
-      <QuestionEditorModal editQ={editQ} newQModal={newQModal} setEditQ={setEditQ} setNewQModal={setNewQModal} activeCategory={activeCategory} categoryMap={categoryMap} handleSaveQuestion={handleSaveQuestion} T={T} />
-
-      {/* ══ TOAST ══ */}
-      {toast.msg && (
-        <div style={{
-          position: "fixed", bottom: "30px", right: "30px", zIndex: 100000,
-          background: toast.type === "error" ? "#7f1d1d" : "#064e3b",
-          border: `1px solid ${toast.type === "error" ? "#f87171" : "#34d399"}40`,
-          color: toast.type === "error" ? T.red : T.green,
-          padding: "14px 22px", borderRadius: "14px", fontWeight: 700, fontSize: "14px",
-          animation: "slideUp 0.35s cubic-bezier(0.34,1.56,0.64,1)",
-          display: "flex", alignItems: "center", gap: "10px",
-          boxShadow: `0 12px 40px rgba(0,0,0,0.4)`
-        }}>
-          <span style={{ fontSize: "18px" }}>{toast.type === "error" ? "⚠️" : "✅"}</span>
-          <span>{toast.msg}</span>
-        </div>
-      )}
-
-      {/* ══ EDIT USER MODAL ══ */}
-      {editUser && (
-        <div onClick={e => { if (e.target === e.currentTarget) setEditUser(null); }}
-          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", backdropFilter: "blur(8px)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <div style={{ background: T.surface, border: `1px solid rgba(0,245,212,0.25)`, borderRadius: "24px", padding: "36px", width: "480px", animation: "slideUp 0.3s ease", boxShadow: "0 40px 100px rgba(0,0,0,0.6)" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "14px", marginBottom: "28px" }}>
-              <div style={{ width: "46px", height: "46px", borderRadius: "14px", background: "linear-gradient(135deg, #00f5d4, #7c3aed)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "22px" }}>👤</div>
-              <div>
-                <h3 style={{ fontSize: "18px", fontWeight: 900, margin: 0, color: T.textPrim }}>Edit Student</h3>
-                <p style={{ fontSize: "13px", color: T.textMuted, margin: "3px 0 0", fontFamily: "monospace" }}>{editUser.code}</p>
-              </div>
+      {/* ══ ELITE MODALS & OVERLAYS ══ */}
+      <>
+        {/* ══ ELITE ENTITLEMENT MANAGER (FULL SCREEN) ══ */}
+        {editUser && (
+          <div style={{ position: "fixed", inset: 0, background: "#0b0616", zIndex: 10000, display: "flex", flexDirection: "column", animation: "fadeUp 0.3s" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "20px 40px", borderBottom: `1px solid ${T.border}`, background: "rgba(255,255,255,0.02)" }}>
+               <div style={{ display: "flex", alignItems: "center", gap: "20px" }}>
+                  <div onClick={() => setEditUser(null)} style={{ cursor: "pointer", fontSize: "20px", color: T.textMuted }}>✕</div>
+                  <div style={{ width: "2px", height: "30px", background: T.border }}></div>
+                  <h2 style={{ fontSize: "18px", fontWeight: 900, color: "#fff", margin: 0 }}>Entitlement Control: <span style={{ color: T.accent }}>{editUser.name}</span></h2>
+               </div>
+               <div style={{ display: "flex", gap: "12px" }}>
+                  <button onClick={() => setEditUser(null)} style={{ background: "rgba(255,255,255,0.05)", color: "#fff", border: `1px solid ${T.border}`, padding: "10px 24px", borderRadius: "10px", fontWeight: 700, cursor: "pointer" }}>Cancel</button>
+                  <button onClick={handleUserSave} style={{ background: "linear-gradient(135deg, #7c3aed, #00f5d4)", color: "#000", border: "none", padding: "10px 32px", borderRadius: "10px", fontWeight: 900, cursor: "pointer" }}>Sync Access</button>
+               </div>
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-              {[["Full Name", "name"], ["Email Address", "email"], ["Phone Number", "phone"]].map(([label, key]) => (
-                <div key={key}>
-                  <label style={{ display: "block", fontSize: "12px", color: T.textMuted, marginBottom: "7px", fontWeight: 700, letterSpacing: "0.5px" }}>{label.toUpperCase()}</label>
-                  <input value={editUser[key] || ''}
-                    onChange={e => setEditUser({ ...editUser, [key]: e.target.value })}
-                    style={{ width: "100%", background: "rgba(255,255,255,0.05)", border: `1px solid ${T.border}`, color: T.textPrim, padding: "12px 16px", borderRadius: "12px", outline: "none", boxSizing: "border-box", fontSize: "15px", transition: "0.2s" }}
-                    onFocus={e => e.target.style.borderColor = `${T.accent}60`}
-                    onBlur={e => e.target.style.borderColor = T.border}
-                  />
-                </div>
-              ))}
-              <div>
-                <label style={{ display: "block", fontSize: "12px", color: T.textMuted, marginBottom: "7px", fontWeight: 700, letterSpacing: "0.5px" }}>SUBSCRIPTION PLAN</label>
-                <select value={editUser.plan || 'free'} onChange={e => setEditUser({ ...editUser, plan: e.target.value })}
-                  style={{ width: "100%", background: T.bg, border: `1px solid ${T.border}`, color: T.textPrim, padding: "12px 16px", borderRadius: "12px", outline: "none", fontSize: "14px", cursor: "pointer" }}>
-                  {['free', 'basic', 'pro', 'premium', 'lifetime'].map(p => <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>)}
-                </select>
-              </div>
-            </div>
-            <div style={{ display: "flex", gap: "12px", marginTop: "28px" }}>
-              <button onClick={handleUserSave} style={{ flex: 1, background: T.accent, color: "#000", border: "none", padding: "14px", borderRadius: "13px", fontWeight: 800, cursor: "pointer", fontSize: "15px" }}>Save Changes</button>
-              <button onClick={() => setEditUser(null)} style={{ flex: 1, background: "rgba(255,255,255,0.05)", color: T.textSec, border: `1px solid ${T.border}`, padding: "14px", borderRadius: "13px", fontWeight: 700, cursor: "pointer", fontSize: "15px" }}>Cancel</button>
+
+            <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+               <div style={{ width: "300px", padding: "40px 20px", borderRight: `1px solid ${T.border}`, display: "flex", flexDirection: "column", gap: "8px", background: "rgba(0,0,0,0.2)" }}>
+                  {[
+                    { id: 'mocks', icon: '🎓', title: 'Mock Exams' },
+                    { id: 'practice', icon: '🛠️', title: 'Practice Mode' },
+                    { id: 'pyqs', icon: '📂', title: 'PYQ Archives' },
+                    { id: 'ai', icon: '📈', title: 'AI Analytics' },
+                    { id: 'social', icon: '🏆', title: 'Social & Ranks' },
+                    { id: 'profile', icon: '👤', title: 'Core Identity' }
+                  ].map(item => (
+                    <div key={item.id} onClick={() => setActiveEntitlementTab(item.id)} style={{
+                      padding: "16px 20px", borderRadius: "14px", cursor: "pointer",
+                      background: activeEntitlementTab === item.id ? "rgba(124,58,237,0.1)" : "transparent",
+                      border: activeEntitlementTab === item.id ? `1px solid rgba(124,58,237,0.3)` : "1px solid transparent",
+                    }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+                         <span>{item.icon}</span>
+                         <span style={{ color: activeEntitlementTab === item.id ? "#fff" : T.textMuted, fontSize: "14px", fontWeight: 800 }}>{item.title}</span>
+                      </div>
+                    </div>
+                  ))}
+                  <div style={{ marginTop: "auto", padding: "20px", background: "rgba(255,255,255,0.02)", borderRadius: "16px", border: `1px solid ${T.border}` }}>
+                    <label style={{ display: "block", fontSize: "10px", color: T.textMuted, fontWeight: 900 }}>SWITCH PLAN</label>
+                    <select value={editUser.plan || 'free'} onChange={e => setEditUser({ ...editUser, plan: e.target.value })} style={{ width: "100%", background: "none", border: "none", color: "#fff", cursor: "pointer" }}>
+                       {['free', 'basic', 'pro', 'premium', 'lifetime'].map(p => <option key={p} value={p}>{p.toUpperCase()}</option>)}
+                    </select>
+                  </div>
+               </div>
+
+               <div style={{ flex: 1, padding: "40px", overflowY: "auto", background: "#0b0616" }}>
+                  {activeEntitlementTab === 'mocks' && (
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "16px" }}>
+                      {entitlementMetadata.exams.map(exam => {
+                        const isAllowed = editUser.featureAccess?.allowedExams?.includes(exam.examKey);
+                        return (
+                          <div key={exam.examKey} onClick={() => {
+                            const cur = editUser.featureAccess?.allowedExams || [];
+                            const next = isAllowed ? cur.filter(k => k !== exam.examKey) : [...cur, exam.examKey];
+                            setEditUser({ ...editUser, featureAccess: { ...editUser.featureAccess, allowedExams: next, fullMocks: true } });
+                          }} style={{ padding: "20px", background: isAllowed ? "rgba(0,245,212,0.05)" : "rgba(255,255,255,0.02)", border: `1px solid ${isAllowed ? T.accent : T.border}`, borderRadius: "16px", cursor: "pointer" }}>
+                            <div style={{ fontSize: "11px", color: T.textMuted, textTransform: "uppercase" }}>{exam.category}</div>
+                            <div style={{ color: "#fff", fontWeight: 700 }}>{exam.name}</div>
+                            <div style={{ marginTop: "12px", color: isAllowed ? T.accent : T.textMuted, fontSize: "11px", fontWeight: 800 }}>{isAllowed ? '● AUTHORIZED' : '○ LOCKED'}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {activeEntitlementTab === 'practice' && (
+                    <div>
+                      <div style={{ background: "rgba(255,255,255,0.02)", padding: "32px", borderRadius: "24px", border: `1px solid ${T.border}` }}>
+                         <label style={{ fontSize: "12px", fontWeight: 900, color: T.accent }}>MODULE ACCESS LIMIT</label>
+                         <div style={{ display: "flex", alignItems: "center", gap: "20px", marginTop: "20px" }}>
+                            <input type="range" min="1" max="50" value={editUser.featureAccess?.maxPracticeModules || 5} onChange={e => setEditUser({ ...editUser, featureAccess: { ...editUser.featureAccess, maxPracticeModules: parseInt(e.target.value) } })} style={{ flex: 1, accentColor: T.accent }} />
+                            <span style={{ fontSize: "24px", fontWeight: 900, color: "#fff" }}>{editUser.featureAccess?.maxPracticeModules || 5}</span>
+                         </div>
+                      </div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", marginTop: "40px" }}>
+                        {entitlementMetadata.topics.map(topic => {
+                          const isOk = editUser.featureAccess?.allowedTopics?.includes(topic);
+                          return (
+                            <div key={topic} onClick={() => {
+                              const cur = editUser.featureAccess?.allowedTopics || [];
+                              const next = isOk ? cur.filter(t => t !== topic) : [...cur, topic];
+                              setEditUser({ ...editUser, featureAccess: { ...editUser.featureAccess, allowedTopics: next, sectionalTests: true } });
+                            }} style={{ padding: "10px 20px", borderRadius: "10px", background: isOk ? T.accent : "rgba(255,255,255,0.05)", color: isOk ? "#000" : "#fff", fontWeight: 700, cursor: "pointer" }}>{topic}</div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {activeEntitlementTab === 'pyqs' && (
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "20px" }}>
+                       {entitlementMetadata.pyqs.map(cat => {
+                          const isOk = editUser.featureAccess?.allowedPYQs?.includes(cat);
+                          return (
+                            <div key={cat} onClick={() => {
+                              const cur = editUser.featureAccess?.allowedPYQs || [];
+                              const next = isOk ? cur.filter(c => c !== cat) : [...cur, cat];
+                              setEditUser({ ...editUser, featureAccess: { ...editUser.featureAccess, allowedPYQs: next, pyqDatabase: true } });
+                            }} style={{ padding: "30px", background: "rgba(255,255,255,0.02)", border: `1px solid ${isOk ? T.accent : T.border}`, borderRadius: "20px", cursor: "pointer", textAlign: "center" }}>
+                               <div style={{ fontSize: "32px" }}>🗃️</div>
+                               <div style={{ color: "#fff", fontWeight: 800, marginTop: "10px" }}>{cat}</div>
+                               <div style={{ color: isOk ? T.accent : T.textMuted, fontSize: "11px", marginTop: "8px" }}>{isOk ? 'ACTIVE' : 'INACTIVE'}</div>
+                            </div>
+                          );
+                       })}
+                    </div>
+                  )}
+
+                  {activeEntitlementTab === 'ai' && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                       {entitlementMetadata.aiModules.map(m => {
+                          const isOk = editUser.featureAccess?.allowedAIModules?.includes(m.key);
+                          return (
+                            <div key={m.key} onClick={() => {
+                              const cur = editUser.featureAccess?.allowedAIModules || [];
+                              const next = isOk ? cur.filter(k => k !== m.key) : [...cur, m.key];
+                              setEditUser({ ...editUser, featureAccess: { ...editUser.featureAccess, allowedAIModules: next, aiInsights: true } });
+                            }} style={{ padding: "20px", background: "rgba(255,255,255,0.02)", borderRadius: "12px", border: `1px solid ${T.border}`, display: "flex", justifyContent: "space-between", cursor: "pointer" }}>
+                               <span style={{ color: "#fff", fontWeight: 700 }}>{m.name}</span>
+                               <span style={{ color: isOk ? T.accent : T.textMuted }}>{isOk ? "ON" : "OFF"}</span>
+                            </div>
+                          );
+                       })}
+                    </div>
+                  )}
+
+                  {activeEntitlementTab === 'social' && (
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
+                       <div onClick={() => setEditUser({ ...editUser, featureAccess: { ...editUser.featureAccess, leaderboardRank: !editUser.featureAccess?.leaderboardRank } })} style={{ padding: "40px", borderRadius: "24px", border: `1px solid ${editUser.featureAccess?.leaderboardRank ? T.accent : T.border}`, background: "rgba(255,255,255,0.02)", cursor: "pointer", textAlign: "center" }}>
+                          <div style={{ fontSize: "32px" }}>🏆</div><div style={{ color: "#fff", fontWeight: 900, marginTop: "10px" }}>Leaderboard Access</div>
+                       </div>
+                       <div onClick={() => setEditUser({ ...editUser, featureAccess: { ...editUser.featureAccess, supportHub: !editUser.featureAccess?.supportHub } })} style={{ padding: "40px", borderRadius: "24px", border: `1px solid ${editUser.featureAccess?.supportHub ? T.accent : T.border}`, background: "rgba(255,255,255,0.02)", cursor: "pointer", textAlign: "center" }}>
+                          <div style={{ fontSize: "32px" }}>🛡️</div><div style={{ color: "#fff", fontWeight: 900, marginTop: "10px" }}>VIP Support Hub</div>
+                       </div>
+                    </div>
+                  )}
+
+                  {activeEntitlementTab === 'profile' && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "20px", maxWidth: "400px" }}>
+                       {[["Name", "name"], ["Email", "email"], ["Phone", "phone"]].map(([l, k]) => (
+                         <div key={k}><label style={{ display: "block", color: T.textMuted, fontSize: "11px", marginBottom: "8px" }}>{l.toUpperCase()}</label>
+                         <input value={editUser[k]||''} onChange={e=>setEditUser({...editUser, [k]:e.target.value})} style={{ width: "100%", background: "rgba(255,255,255,0.05)", border: `1px solid ${T.border}`, padding: "12px", borderRadius: "10px", color: "#fff" }} /></div>
+                       ))}
+                    </div>
+                  )}
+               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* ══ PLAN EDITOR MODAL ══ */}
-      {(newOfferModal || editOffer) && (
-        <PlanEditorModal 
-          editOffer={editOffer} 
-          newOfferModal={newOfferModal} 
-          setEditOffer={setEditOffer} 
-          setNewOfferModal={setNewOfferModal} 
-          handleSaveOffer={handleSaveOffer} 
-          T={T} 
-        />
-      )}
+        {/* ══ MANUAL ONBOARD MODAL ══ */}
+        {newUser && (
+          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", backdropFilter: "blur(12px)", zIndex: 10000, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: "28px", padding: "40px", width: "500px" }}>
+              <h3 style={{ fontSize: "20px", fontWeight: 900, color: "#fff", marginBottom: "24px" }}>Student Onboarding</h3>
+              <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                {[["Name", "name"], ["Email", "email"]].map(([l, k]) => (
+                  <input key={k} placeholder={l} value={newUser[k]||''} onChange={e=>setNewUser({...newUser, [k]:e.target.value})} style={{ background: "rgba(255,255,255,0.05)", border: `1px solid ${T.border}`, padding: "14px", borderRadius: "12px", color: "#fff" }} />
+                ))}
+                <button onClick={handleCreateUser} style={{ background: "linear-gradient(135deg, #7c3aed, #00f5d4)", color: "#fff", border: "none", padding: "16px", borderRadius: "12px", fontWeight: 900, cursor: "pointer" }}>Onboard Student</button>
+                <button onClick={() => setNewUser(null)} style={{ background: "none", color: T.textMuted, border: "none", cursor: "pointer" }}>Cancel</button>
+              </div>
+            </div>
+          </div>
+        )}
 
-      {/* ══ COUPON EDITOR MODAL ══ */}
-      {(newCouponModal || editCoupon) && (
-        <CouponEditorModal 
-          editCoupon={editCoupon} 
-          newCouponModal={newCouponModal} 
-          setEditCoupon={setEditCoupon} 
-          setNewCouponModal={setNewCouponModal} 
-          handleSaveCoupon={handleSaveCoupon} 
-          T={T} 
-        />
-      )}
-
-      {/* ══ GAMIFIED EDITOR MODAL ══ */}
-      {(newGamifiedModal || editGamified) && (
-        <GamifiedEditorModal 
-          editGamified={editGamified} 
-          newGamifiedModal={newGamifiedModal} 
-          setEditGamified={setEditGamified} 
-          setNewGamifiedModal={setNewGamifiedModal} 
-          handleSaveGamified={handleSaveGamified} 
-          T={T} 
-        />
-      )}
+        <PlanEditorModal editOffer={editOffer} newOfferModal={newOfferModal} setEditOffer={setEditOffer} setNewOfferModal={setNewOfferModal} handleSaveOffer={handleSaveOffer} T={T} />
+        <CouponEditorModal editCoupon={editCoupon} newCouponModal={newCouponModal} setEditCoupon={setEditCoupon} setNewCouponModal={setNewCouponModal} handleSaveCoupon={handleSaveCoupon} T={T} />
+        <GamifiedEditorModal editGamified={editGamified} newGamifiedModal={newGamifiedModal} setEditGamified={setEditGamified} setNewGamifiedModal={setNewGamifiedModal} handleSaveGamified={handleSaveGamified} T={T} />
+        <ExamConfigurator target={newExam || editExam} setTarget={newExam ? setNewExam : setEditExam} builderData={builderData} setBuilderData={setBuilderData} primarySectors={["Aptitude", "Reasoning", "Verbal", "Technical"]} categoryMap={categoryMap} topicsMap={topicsMap} norm={norm} fuzzyMatch={fuzzyMatch} handleSave={handleSaveExam} openManualSelection={openManualSelection} addAutoQs={addAutoQs} removeTopicFromConfig={removeTopicFromConfig} addTopicFromBuilder={addTopicFromBuilder} activeTab={activeTab} setActiveTab={setActiveTab} detailedStats={detailedStats} />
+        <ManualSelector manualModal={manualModal} setManualModal={setManualModal} toggleManualSelect={toggleManualSelect} target={newExam || editExam} fuzzyMatch={fuzzyMatch} />
+        <QuestionEditorModal editQ={editQ} newQModal={newQModal} setEditQ={setEditQ} setNewQModal={setNewQModal} activeCategory={activeCategory} categoryMap={categoryMap} handleSaveQuestion={handleSaveQuestion} T={T} />
+        {toast.msg && (
+          <div style={{ position: "fixed", bottom: "30px", right: "30px", zIndex: 100000, background: toast.type === "error" ? "#7f1d1d" : "#064e3b", color: "#fff", padding: "14px 22px", borderRadius: "14px", fontWeight: 700 }}>{toast.msg}</div>
+        )}
+      </>
 
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
-        * { box-sizing: border-box; -webkit-font-smoothing: antialiased; }
-        body { margin: 0; }
-        .page-in { animation: fadeUp 0.35s ease forwards; }
-        @keyframes fadeUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes slideUp { from { opacity: 0; transform: scale(0.85) translateY(20px); } to { opacity: 1; transform: scale(1) translateY(0); } }
-        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        * { box-sizing: border-box; }
         ::-webkit-scrollbar { width: 5px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 8px; }
-        ::-webkit-scrollbar-thumb:hover { background: rgba(0,245,212,0.35); }
-        input::placeholder { color: #5a4e6f; }
-        select option { background: #1e1133; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
       `}</style>
     </div>
   );

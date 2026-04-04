@@ -5,6 +5,7 @@ const Submission = require('../models/Submission');
 const Question = require('../models/Question');
 const TrashQuestion = require('../models/TrashQuestion');
 const Config = require('../models/Config');
+const Exam = require('../models/Exam');
 const Review = require('../models/Review');
 const Activity = require('../models/Activity');
 const Issue = require('../models/Issue');
@@ -58,6 +59,22 @@ function adminAuth(req, res, next) {
   } catch { res.status(401).json({ error: 'Invalid token' }); }
 }
 
+// GET /api/admin/metadata/entitlements — Fetch items for granular mapping
+router.get('/metadata/entitlements', adminAuth, async (req, res) => {
+  try {
+    const exams = await Exam.find({}, 'name examKey category subCategory');
+    const topics = await Question.distinct('topic');
+    const pyqs = ['Aptitude', 'Technical', 'General', 'Reasoning', 'Verbal']; // Hardcoded base categories
+    const aiModules = [
+      { key: 'radar', name: 'Subject Mastery Radar' },
+      { key: 'trends', name: 'Exam Score Trends' },
+      { key: 'topicPerf', name: 'Topic Performance Bar' },
+      { key: 'timeSpent', name: 'Daily Time Analysis' }
+    ];
+    res.json({ exams, topics, pyqs, aiModules });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // ═══════════════ SUBMISSIONS ═══════════════
 
 // GET /api/admin/submissions
@@ -84,24 +101,49 @@ router.post('/approve/:id', adminAuth, async (req, res) => {
     const existing = await User.findOne({ code });
     if (!existing) {
       let finalPlan = 'free';
-      let maxAttempts = 5;
-      let dailyLimit = 5;
+      let maxAttempts = 10;
+      let dailyLimit = 10;
       let validUntil = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
 
       const pr = sub.planRequested || 'Free Trial';
       
+      const featureSet = {
+        fullMocks: true, 
+        allowedExams: [], // Initially empty, admin can populate later or per plan
+        pyqDatabase: false,
+        allowedPYQs: [],
+        aiInsights: false,
+        allowedAIModules: ['radar', 'trends', 'topicPerf', 'timeSpent'],
+        leaderboardRank: true,
+        sectionalTests: false,
+        allowedTopics: [],
+        maxPracticeModules: 5,
+        supportHub: true
+      };
+
       if (pr === 'Basic Plan') {
         finalPlan = 'basic'; maxAttempts = 9999; dailyLimit = 20;
         validUntil = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+        featureSet.fullMocks = true;
+        featureSet.sectionalTests = true;
+        featureSet.maxPracticeModules = 9999;
       } else if (pr === 'Pro Plan') {
         finalPlan = 'pro'; maxAttempts = 9999; dailyLimit = 9999;
         validUntil = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-      } else if (pr === 'Premium Plan') {
+        featureSet.fullMocks = true;
+        featureSet.pyqDatabase = true;
+        featureSet.aiInsights = true;
+        featureSet.leaderboardRank = true;
+        featureSet.sectionalTests = true;
+        featureSet.maxPracticeModules = 9999;
+      } else if (pr.includes('Premium') || pr.includes('Elite')) {
         finalPlan = 'premium'; maxAttempts = 9999; dailyLimit = 9999;
         validUntil = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+        Object.keys(featureSet).forEach(k => featureSet[k] = true);
       } else if (pr === 'Lifetime Plan') {
         finalPlan = 'lifetime'; maxAttempts = 9999; dailyLimit = 9999;
-        validUntil = null; // No expiry
+        validUntil = null;
+        Object.keys(featureSet).forEach(k => featureSet[k] = true);
       }
 
       await User.create({ 
@@ -112,6 +154,7 @@ router.post('/approve/:id', adminAuth, async (req, res) => {
         utr: sub.utr, 
         status: 'active', 
         plan: finalPlan,
+        featureAccess: featureSet,
         subscription: {
           planType: finalPlan === 'lifetime' ? 'unlimited' : 'daily_limit',
           maxAttempts: maxAttempts,
@@ -243,7 +286,7 @@ router.get('/submissions/:userCode', adminAuth, async (req, res) => {
 // PUT /api/admin/user/:code — Edit user
 router.put('/user/:code', adminAuth, async (req, res) => {
   try {
-    const { name, email, phone, plan, status, subscription } = req.body;
+    const { name, email, phone, plan, status, subscription, featureAccess } = req.body;
     const update = {};
     if (name)  update.name  = name;
     if (email) update.email = email;
@@ -251,6 +294,7 @@ router.put('/user/:code', adminAuth, async (req, res) => {
     if (plan)  update.plan  = plan;
     if (status) update.status = status;
     if (subscription) update.subscription = subscription;
+    if (featureAccess) update.featureAccess = featureAccess;
     const user = await User.findOneAndUpdate({ code: req.params.code.toUpperCase() }, update, { new: true });
     if (!user) return res.status(404).json({ error: 'User not found' });
     logActivity('EDIT_USER', `Edited user ${user.name} (${user.code})`, user.code);
@@ -275,6 +319,50 @@ router.delete('/user/:code', adminAuth, async (req, res) => {
     logActivity('DELETE_USER', `Deleted user ${user.name} (${user.code}) and all associated data`, user.code);
     res.json({ success: true, message: 'User and all associated data deleted successfully' });
   } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/admin/user — Manual add user
+router.post('/user', adminAuth, async (req, res) => {
+  try {
+    const { name, email, phone, plan, featureAccess } = req.body;
+    if (!name || !email) return res.status(400).json({ error: 'Name and email are required' });
+
+    // Generate unique code (e.g., NQT-XXXX)
+    let code = '';
+    let exists = true;
+    while (exists) {
+      code = 'NQT-' + Math.random().toString(36).substring(2, 6).toUpperCase();
+      const existing = await User.findOne({ code });
+      if (!existing) exists = false;
+    }
+
+    const newUser = await User.create({
+      code,
+      name,
+      email,
+      phone: phone || 'N/A',
+      plan: plan || 'free',
+      status: 'active',
+      featureAccess: featureAccess || {
+        fullMocks: plan === 'free' ? true : false,
+        allowedExams: [],
+        pyqDatabase: false,
+        allowedPYQs: [],
+        aiInsights: false,
+        allowedAIModules: ['radar', 'trends', 'topicPerf', 'timeSpent'],
+        leaderboardRank: plan === 'free' ? true : false,
+        sectionalTests: false,
+        allowedTopics: [],
+        maxPracticeModules: plan === 'free' ? 5 : 9999,
+        supportHub: plan === 'free' ? true : false
+      }
+    });
+
+    logActivity('MANUAL_ADD_USER', `Manually added user ${name} (${code})`, code);
+    res.json({ success: true, message: 'User created successfully', user: newUser });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // POST /api/admin/reset/:code — Reset user progress and delete all exam history
@@ -1292,14 +1380,56 @@ router.post('/offers/:id/toggle', adminAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// POST /api/admin/offers/:id/delete
-router.post('/offers/:id/delete', adminAuth, async (req, res) => {
+// POST /api/admin/offers/seed — Initialize 5 Standard Tiers
+router.post('/offers/seed', adminAuth, async (req, res) => {
   try {
-    const offer = await Offer.findByIdAndDelete(req.params.id);
-    logActivity('DELETE_OFFER', `Deleted offer: ${offer?.title}`);
-    res.json({ success: true });
+    const seedData = [
+      {
+        title: "FREE TASTER",
+        priceOriginal: 399, priceOffer: 0, discount: "100% OFF",
+        tierLevel: "FREE",
+        features: ["10 Basic Mock Exams", "Standard Leaderboard View", "Community Q&A Access", "Email Support (24h Response)"],
+        durationDays: 7, active: true
+      },
+      {
+        title: "ESSENTIAL PASS",
+        priceOriginal: 499, priceOffer: 49, discount: "90% OFF",
+        tierLevel: "BASIC",
+        features: ["30 Full Mock Exams", "Personal Performance Stats", "Section-wise Analytics", "All Aptitude & Reasoning PYQs"],
+        durationDays: 15, active: true
+      },
+      {
+        title: "PRO SUCCESS BUNDLE",
+        priceOriginal: 999, priceOffer: 149, discount: "85% OFF",
+        tierLevel: "PRO",
+        features: ["Full 310+ PYQ Database", "Real Exam UI Simulator", "Predictive Score Modeling", "Unlimited Sectional Retakes", "Live Global Leaderboard"],
+        durationDays: 30, active: true
+      },
+      {
+        title: "ELITE CAREER PACK",
+        priceOriginal: 1999, priceOffer: 299, discount: "85% OFF",
+        tierLevel: "PREMIUM",
+        features: ["Everything in PRO Plan", "Exclusive Digital/Ninja Content", "One-on-One Priority Email", "Advanced DSA Mastery Module", "Downloadable Prep PDF Vault"],
+        durationDays: 90, active: true
+      },
+      {
+        title: "LIFETIME MASTERY",
+        priceOriginal: 4999, priceOffer: 999, discount: "80% OFF",
+        tierLevel: "LIFETIME",
+        features: ["Permanent Portal Access", "All Future Updates Free", "Lifetime Community Badge", "Priority Beta Access", "Direct Desktop App Access"],
+        durationDays: 9999, active: true
+      }
+    ];
+
+    // Wipe existing and re-seed
+    await Offer.deleteMany({});
+    await Offer.insertMany(seedData);
+    logActivity('SEED_OFFERS', 'Reset and Seeded 5 Standard Subscription Tiers');
+    res.json({ success: true, message: "5 Standard Plans Seeded! 🚀" });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
+
+// POST /api/admin/offers/:id/delete
 
 // ═══════════════ PROMO COUPONS ═══════════════
 
